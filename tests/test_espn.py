@@ -93,6 +93,9 @@ class Injuries(unittest.TestCase):
         payton = d["players"]["3134903"]
         self.assertEqual(payton["status"], "Day-To-Day")
         self.assertEqual(payton["detail"]["type"], "Knee")
+        # статус к ближайшему матчу, как на страницах ESPN
+        self.assertEqual(payton["espnStatus"], "GTD")
+        self.assertEqual(d["players"]["4897262"]["espnStatus"], "OUT")
 
 
 class PlayerStats(unittest.TestCase):
@@ -182,6 +185,26 @@ class GameLog(unittest.TestCase):
         self.assertEqual((g["pts"], g["min"], g["fgm"], g["fga"], g["blk"]), (25, 21, 6, 10, 0))
         self.assertEqual(g["opponent"]["abbr"], "NO")
         self.assertEqual(g["result"], "W")
+        self.assertEqual((g["teamScore"], g["oppScore"], g["ot"]), (138, 87, None))
+
+    def test_score_is_winner_first(self):
+        # ESPN пишет счёт «победитель первым»: поражение у LAL «127-105» — это 105:127 в пользу LAL
+        games = {g["eventId"]: g for g in espn.parse_gamelog(fx("espn_gamelog_3975.json"), "3975")["games"]}
+        lal = games["401909092"]
+        self.assertEqual((lal["result"], lal["home"]), ("L", False))
+        self.assertEqual((lal["teamScore"], lal["oppScore"]), (105, 127))
+        orl = games["401909942"]
+        self.assertEqual((orl["teamScore"], orl["oppScore"], orl["ot"]), (126, 119, "OT"))
+
+    def test_score_fallback_and_edge_cases(self):
+        # без отдельных полей очков — разбор строки «победитель первым»
+        self.assertEqual(espn._gamelog_score({"score": "130-128 2OT", "gameResult": "L"}), (128, 130, "2OT"))
+        self.assertEqual(espn._gamelog_score({"score": "", "gameResult": "W"}), (None, None, None))
+        self.assertEqual(espn._gamelog_score({"score": "100-90"}), (None, None, None))
+        # отдельные поля важнее строки: ГСВ (id 9) в гостях
+        meta = {"score": "127-105", "gameResult": "L", "homeTeamId": "13", "awayTeamId": "9",
+                "homeTeamScore": "127", "awayTeamScore": "105", "team": {"id": "9"}}
+        self.assertEqual(espn._gamelog_score(meta), (105, 127, None))
 
 
 class TeamAndScoreboard(unittest.TestCase):

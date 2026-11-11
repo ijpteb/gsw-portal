@@ -8,6 +8,7 @@
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from fractions import Fraction
 
@@ -266,14 +267,18 @@ def parse_injuries(raw: dict) -> dict:
                         break
             if not pid:
                 continue
+            details = i.get("details") or {}
             out[pid] = {
                 "name": ath.get("displayName"),
                 "status": i.get("status"),
+                # Статус к ближайшему матчу — именно его ESPN показывает на своих страницах
+                # (11.11.2026: у Ричарда status «Out», а на сайте ESPN — «GTD», решение перед игрой).
+                "espnStatus": (details.get("fantasyStatus") or {}).get("abbreviation"),
                 "type": (i.get("type") or {}).get("description"),
                 "date": i.get("date"),
                 "short": i.get("shortComment"),
                 "long": i.get("longComment"),
-                "detail": _injury_detail(i.get("details") or {}),
+                "detail": _injury_detail(details),
             }
     if not raw.get("injuries"):
         raise SourceError("травмы: источник отдал пустой ответ")
@@ -341,6 +346,30 @@ def parse_player_stats(raw: dict) -> dict:
     return {"season": config.SEASON_LABEL, "players": players}
 
 
+_GAMELOG_SCORE = re.compile(r"^\s*(\d+)\s*-\s*(\d+)(?:\s+(\d*OT))?\s*$")
+
+
+def _gamelog_score(meta: dict):
+    """Счёт матча из журнала ESPN: (очки ГСВ, очки соперника, овертайм «OT»/«2OT» или None).
+
+    Основное — отдельные поля очков хозяев и гостей (homeTeamScore/awayTeamScore) и id команд.
+    Запасное — строка score, где ESPN пишет счёт «победитель первым»: «127-105» при поражении — это 105:127.
+    """
+    m = _GAMELOG_SCORE.match(meta.get("score") or "")
+    ot = m.group(3) if m else None
+    home, away = _num(meta.get("homeTeamScore")), _num(meta.get("awayTeamScore"))
+    team_id = str((meta.get("team") or {}).get("id") or "")
+    if home is not None and away is not None and team_id:
+        if team_id == str(meta.get("homeTeamId")):
+            return home, away, ot
+        if team_id == str(meta.get("awayTeamId")):
+            return away, home, ot
+    if m and meta.get("gameResult") in ("W", "L"):
+        win, lose = int(m.group(1)), int(m.group(2))
+        return ((win, lose) if meta["gameResult"] == "W" else (lose, win)) + (ot,)
+    return None, None, ot
+
+
 def parse_gamelog(raw: dict, player_id: str) -> dict:
     names = raw.get("names") or []
     events_meta = raw.get("events") or {}
@@ -367,6 +396,7 @@ def parse_gamelog(raw: dict, player_id: str) -> dict:
                 fgm, fga = ma("fieldGoalsMade-fieldGoalsAttempted")
                 f3m, f3a = ma("threePointFieldGoalsMade-threePointFieldGoalsAttempted")
                 ftm, fta = ma("freeThrowsMade-freeThrowsAttempted")
+                team_score, opp_score, ot = _gamelog_score(meta)
                 games.append({
                     "eventId": ev.get("eventId"),
                     "date": meta.get("gameDate"),
@@ -375,6 +405,7 @@ def parse_gamelog(raw: dict, player_id: str) -> dict:
                                  "logo": _logo_path(opp.get("abbreviation"))},
                     "result": meta.get("gameResult"),
                     "score": meta.get("score"),
+                    "teamScore": team_score, "oppScore": opp_score, "ot": ot,
                     "min": _num(vals.get("minutes")),
                     "pts": _num(vals.get("points")),
                     "reb": _num(vals.get("totalRebounds")),
