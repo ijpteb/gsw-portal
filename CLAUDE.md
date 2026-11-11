@@ -84,7 +84,8 @@
 ## Как запускать (локально)
 - Сбор данных: `python3 -m collector run` (из папки проекта); всё сейчас: `--force`; состояние: `python3 -m collector status`.
 - Дежурство как на GitHub: `python3 -m collector loop [--tick 60] [--max-minutes N] [--after-update CMD] [--handover CMD]` (выход, когда `--handover` вернёт код 0).
-- Тесты: `python3 -m unittest discover -s tests -t .` (64 теста, на настоящих ответах; дежурство, в т. ч. свежая смена перед матчем — `tests/test_loop.py`, плей-ин/плей-офф, счёт в журнале и время до матча — `tests/test_schedule_task.py`, код сайта — `tests/test_site.py`).
+- Тесты: `python3 -m unittest discover -s tests -t .` (66 тестов, на настоящих ответах; дежурство, в т. ч. свежая смена перед матчем — `tests/test_loop.py`, плей-ин/плей-офф, счёт в журнале и время до матча — `tests/test_schedule_task.py`, код сайта — `tests/test_site.py`, замер задержки — `tests/test_live_delay.py`).
+- Замер задержки счёта после матча: `python3 scripts/live_delay.py --summary … --log … --deploys … [--rows]` (как собрать входные файлы — в начале скрипта): очко у ESPN → проход сборщика → конец публикации; перерывы, пересменки, финальный счёт, упавшие публикации.
 - Источники вживую: `python3 tests/check_sources.py` (`--save` → `tests/fixtures/new/`); запасные: `python3 tests/probe_backup_sources.py`.
 - GitHub CLI: `~/.local/bin/gh` (вход ijpteb, права repo+workflow). Ручной сбор на GitHub: `gh workflow run collect.yml -R ijpteb/gsw-portal -f force=true`.
 - Python с python.org на Mac не видит сертификаты — `collector/http.py` подключает `/etc/ssl/cert.pem` сам.
@@ -128,6 +129,7 @@
    - когда сборщик увидел счёт — журнал дежурства: с 11.11.2026 строка прохода пишет `live: ok (54:50, 5:12 - 2nd)` (очки ГСВ первыми; `run.live_note`), журналы GitHub хранит 90 дней (`gh run view <id> --log` — только у завершённых запусков);
    - когда счёт появился на сайте — время окончания запусков «Публикация сайта» (`gh run list --workflow deploy.yml`); точное содержимое каждой публикации — архив `github-pages` у запуска (`gh run download <id> -n github-pages` → `artifact.tar` → `data/live.json`), хранится 1 сутки;
    - плюс до 30 с — страница во время матча проверяет свежие данные раз в 30 с.
+   Всё это сводит `scripts/live_delay.py` (см. «Как запускать»); у штрафных ESPN иногда ставит `wallclock` позже следующей замены с уже новым счётом — скрипт берёт самое раннее время, когда счёт стал таким.
 
    Выход дежурства по пределу 320 мин не проверен (выход «свежая смена перед матчем» идёт тем же путём — посмотреть в журнале после матча @HOU: за 45 мин до начала, ~01:45 UTC). Упавший запуск публикации целиком не повторяется — его заменяет следующий, не позже чем через ~20 мин (см. `ci_publish.sh`); ошибку `deploy-pages` «No artifacts…» `deploy.yml` повторяет сам.
 После каждого этапа: отчёт, обновить этот файл, коммит в git, ждать «дальше».
