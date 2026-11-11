@@ -26,14 +26,24 @@ function settle(t, cleanup) {
 const wait = (ms) => new Promise((r) => { setTimeout(r, ms); });
 
 /**
+ * Переход начинается только со следующего кадра. Если браузер кадры не рисует (окно скрыто
+ * или не обновляется), через 1 с отменяем анимацию: страница сменится сразу, без неё.
+ */
+function guard(t, started) {
+  setTimeout(() => { if (!started()) t.skipTransition(); }, 1000);
+}
+
+/**
  * Смена страницы, при которой фото игрока «перелетает» со старого места на новое
  * (карточка в составе → большое фото в карточке игрока и обратно).
  * update() рисует новую страницу; дольше 0,8 с не ждём — показываем как есть.
  */
 export function morphPage(fromEl, id, root, update) {
   let toEl = null;
+  let started = false;
   fromEl.style.viewTransitionName = 'player-photo';
   const t = document.startViewTransition(async () => {
+    started = true;
     fromEl.style.viewTransitionName = '';
     await Promise.race([update(), wait(800)]);
     toEl = findPhoto(root, id);
@@ -43,13 +53,19 @@ export function morphPage(fromEl, id, root, update) {
     fromEl.style.viewTransitionName = '';
     if (toEl) toEl.style.viewTransitionName = '';
   });
+  guard(t, () => started);
   return t;
 }
 
 /** Перестановка карточек (фильтр, сортировка): каждая плавно едет на новое место. */
 export function animateList(els, update) {
+  let started = false;
   els.forEach((el) => { el.style.viewTransitionName = `item-${el.dataset.id}`; });
-  const t = document.startViewTransition(update);
+  const t = document.startViewTransition(() => {
+    started = true;
+    return update();
+  });
   settle(t, () => els.forEach((el) => { el.style.viewTransitionName = ''; }));
+  guard(t, () => started);
   return t;
 }
