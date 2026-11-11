@@ -2,10 +2,10 @@
 import * as data from './data.js?v=__V__';
 import * as fmt from './format.js?v=__V__';
 import * as fav from './favorites.js?v=__V__';
-import {h, avatar, starButton, sourceLine, emptyState, usable, problemText} from './ui.js?v=__V__';
+import {h, avatar, starButton, sourceLine, emptyState, usable, problemText, injuryOf} from './ui.js?v=__V__';
+import {openSearch} from './search.js?v=__V__';
 
 const lowerFirst = (s) => s.charAt(0).toLowerCase() + s.slice(1);
-import {openSearch} from './search.js?v=__V__';
 
 /** Всё, что нужно блоку «Мои игроки»: состав, статистика, травмы и журналы матчей избранных. */
 export async function loadFavorites() {
@@ -49,7 +49,6 @@ export function favoritesBlock(d) {
   }
   const roster = new Map((usable(d.roster) ? d.roster.data.players : []).map((p) => [p.id, p]));
   const stats = new Map((usable(d.stats) ? d.stats.data.players : []).map((p) => [p.id, p.stats]));
-  const inj = usable(d.injuries) ? d.injuries.data.players || {} : {};
   const cards = d.ids.map((id) => {
     const p = roster.get(id);
     if (!p) {
@@ -73,14 +72,14 @@ export function favoritesBlock(d) {
       statsPart = [h('p', {class: 'muted'}, `Средние за сезон сейчас недоступны: ${lowerFirst(problemText(d.stats))}.`),
         lastGameLine(d.gamelogs[id])];
     }
-    const injury = inj[id] || (p.injury ? {status: p.injury.status} : null);
+    const injury = injuryOf(p, d.injuries);
     return h('article', {class: 'fav-card'},
       h('div', {class: 'fav-head'},
         h('a', {href: `#/player/${id}`, class: 'fav-photo', tabindex: '-1', 'aria-hidden': 'true'}, avatar(p)),
         h('div', {class: 'fav-who'},
           h('a', {href: `#/player/${id}`, class: 'fav-name'}, p.name),
           h('p', {class: 'muted'}, [p.jersey != null ? `#${p.jersey}` : null, fmt.position(p.position)].filter(Boolean).join(' · ')),
-          injury && h('p', {class: 'chip chip-injury'}, `Травма: ${fmt.injuryStatus(injury.status)}`)),
+          injury && h('p', {class: 'chip chip-injury'}, `Травма: ${fmt.injuryLabel(injury)}`)),
         starButton(p)),
       statsPart);
   });

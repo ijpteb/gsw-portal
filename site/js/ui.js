@@ -203,6 +203,37 @@ export function avatar(p, cls = '') {
   return box;
 }
 
+/**
+ * Фото игрока «по пояс» (вырезанное, как у ESPN); нет фото — номер и инициалы.
+ * data-photo-id — чтобы при переходе в карточку игрока фото «перелетало» на новое место.
+ */
+export function playerPhoto(p, {eager = false} = {}) {
+  const box = h('span', {class: 'photo'});
+  const ini = initials(p?.name);
+  const fallback = () => box.replaceChildren(h('span', {class: 'photo-fallback', 'data-photo-id': p?.id},
+    p?.jersey != null ? h('span', {class: 'photo-num'}, `#${p.jersey}`) : null,
+    ini ? h('span', {class: 'photo-ini'}, ini) : null));
+  if (p?.headshot) {
+    box.append(h('img', {src: p.headshot, alt: '', width: 520, height: 380, loading: eager ? 'eager' : 'lazy',
+      decoding: 'async', 'data-photo-id': p.id, onerror: fallback}));
+  } else {
+    fallback();
+  }
+  return box;
+}
+
+/** Травма: подробности из отчёта ESPN о травмах, а если их нет — отметка в составе. null — в строю. */
+export function injuryOf(p, injuries) {
+  const full = usable(injuries) ? injuries.data.players?.[p.id] : null;
+  return full || (p.injury ? {status: p.injury.status, date: p.injury.date} : null);
+}
+
+/** «Травма: не играет» или «В строю». */
+export function statusChip(injury) {
+  return injury ? h('span', {class: 'chip chip-injury'}, `Травма: ${fmt.injuryLabel(injury)}`)
+    : h('span', {class: 'chip chip-ok'}, 'В строю');
+}
+
 /** Звёздочка «в избранное». Все звёздочки на странице синхронизируются одним общим слушателем. */
 export function starButton(p, {withText = false} = {}) {
   const b = h('button', {type: 'button', class: `star-btn${withText ? ' star-btn-text' : ''}`,

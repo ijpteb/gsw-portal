@@ -7,9 +7,11 @@ import {h, icon, toast, errorState} from './ui.js?v=__V__';
 import {SECTIONS} from './sections.js?v=__V__';
 import {openSearch} from './search.js?v=__V__';
 import {openOverlay, closeOverlay, currentOverlay} from './overlay.js?v=__V__';
+import {canAnimate, findPhoto, morphPage} from './transitions.js?v=__V__';
 import home from './pages/home.js?v=__V__';
 import newsItem from './pages/news-item.js?v=__V__';
 import player from './pages/player.js?v=__V__';
+import roster from './pages/roster.js?v=__V__';
 import favorites from './pages/favorites.js?v=__V__';
 import soon from './pages/soon.js?v=__V__';
 import status from './pages/status.js?v=__V__';
@@ -29,6 +31,7 @@ const ROUTES = [
   [/^\/?$/, home],
   [/^\/news\/([\w-]+)$/, newsItem],
   [/^\/player\/(\d+)$/, player],
+  [/^\/roster$/, roster],
   [/^\/favorites$/, favorites],
   [/^\/status$/, status],
   [new RegExp(`^/(${soonIds})$`), soon],
@@ -38,6 +41,7 @@ const main = document.getElementById('main');
 let current = null;
 let navToken = 0;
 let firstRoute = true;
+let lastPath = null;
 
 // --- Меню ------------------------------------------------------------------------------
 
@@ -76,38 +80,87 @@ function updateFavBadge() {
 }
 
 // --- Переходы ----------------------------------------------------------------------------
+// Адрес — после «#»: #/roster?sort=pts → путь «/roster» и параметры sort=pts.
+
+function resolve() {
+  const raw = location.hash.replace(/^#/, '') || '/';
+  const qi = raw.indexOf('?');
+  const path = qi >= 0 ? raw.slice(0, qi) : raw;
+  const query = new URLSearchParams(qi >= 0 ? raw.slice(qi + 1) : '');
+  for (const [re, page] of ROUTES) {
+    const m = path.match(re);
+    if (m) return {page, params: m.slice(1).map(decodeURIComponent), query, path};
+  }
+  return {page: notFound, params: [], query, path};
+}
+
+const playerIdOf = (path) => path?.match(/^\/player\/(\d+)$/)?.[1] || null;
+
+// Где была прокрутка: запоминаем в записи истории, чтобы «Назад» вернул на то же место
+// (например, к тому же игроку в длинном списке состава).
+if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+let saveTimer = 0;
+function saveScroll() {
+  clearTimeout(saveTimer);
+  try {
+    history.replaceState({...(history.state || {}), y: Math.round(window.scrollY)}, '');
+  } catch {
+    // браузер ограничивает частоту — не страшно
+  }
+}
+window.addEventListener('scroll', () => {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveScroll, 250);
+}, {passive: true});
+// Перед переходом по ссылке — сразу (прокрутка могла не успеть сохраниться).
+document.addEventListener('click', (e) => {
+  if (e.target.closest?.('a[href^="#"]')) saveScroll();
+}, true);
 
 async function route() {
+  clearTimeout(saveTimer); // не записать прокрутку старой страницы в новую запись истории
   const token = ++navToken;
-  const path = location.hash.replace(/^#/, '') || '/';
-  let page = notFound;
-  let params = [];
-  for (const [re, p] of ROUTES) {
-    const m = path.match(re);
-    if (m) { page = p; params = m.slice(1).map(decodeURIComponent); break; }
-  }
-  if (currentOverlay()) closeOverlay(currentOverlay(), {restoreFocus: false});
-  current?.destroy?.();
-  current = null;
-  const view = h('div', {class: 'view'});
-  main.replaceChildren(view);
-  setActive(page.section(params));
-  document.title = `${page.title(params)} · Golden State Warriors 2026/27`;
-  if (!firstRoute) {
-    window.scrollTo(0, 0);
-    main.focus({preventScroll: true});
-  }
+  const {page, params, query, path} = resolve();
+  const savedY = history.state?.y;
+  const fromPath = lastPath;
+  lastPath = path;
+  const first = firstRoute;
   firstRoute = false;
-  try {
-    const ctrl = await page.render(view, params);
-    if (token !== navToken) { ctrl?.destroy?.(); return; }
-    current = ctrl || {};
-  } catch (err) {
-    if (token !== navToken) return;
-    console.error(err);
-    view.replaceChildren(h('div', {class: 'page narrow'}, errorState({title: 'Страница не открылась',
-      text: 'Внутренняя ошибка сайта. Нажмите «Обновить» или откройте страницу позже.'})));
-  }
+  if (currentOverlay()) closeOverlay(currentOverlay(), {restoreFocus: false});
+
+  const swap = async (animated) => {
+    if (token !== navToken) return; // пока ждали, уже ушли на другую страницу
+    current?.destroy?.();
+    current = null;
+    const view = h('div', {class: animated ? 'view no-anim' : 'view'});
+    main.replaceChildren(view);
+    setActive(page.section(params));
+    document.title = `${page.title(params)} · Golden State Warriors 2026/27`;
+    if (!first && savedY == null) window.scrollTo(0, 0);
+    if (!first) main.focus({preventScroll: true});
+    try {
+      const ctrl = await page.render(view, params, query);
+      if (token !== navToken) { ctrl?.destroy?.(); return; }
+      current = ctrl || {};
+      if (savedY != null) {
+        window.scrollTo(0, savedY);
+        // Вернулись из карточки игрока — фокус на его ссылке в списке (удобно с клавиатуры).
+        const back = playerIdOf(fromPath);
+        if (back && !first) main.querySelector(`a[href="#/player/${back}"]`)?.focus({preventScroll: true});
+      }
+    } catch (err) {
+      if (token !== navToken) return;
+      console.error(err);
+      view.replaceChildren(h('div', {class: 'page narrow'}, errorState({title: 'Страница не открылась',
+        text: 'Внутренняя ошибка сайта. Нажмите «Обновить» или откройте страницу позже.'})));
+    }
+  };
+
+  // «Раскрытие» карточки игрока: фото перелетает из списка (или с главной) в карточку и обратно.
+  const id = playerIdOf(path) || playerIdOf(fromPath);
+  const fromEl = !first && id && canAnimate() ? findPhoto(main, id) : null;
+  if (fromEl) await morphPage(fromEl, id, main, () => swap(true)).updateCallbackDone.catch(() => {});
+  else await swap(false);
 }
 
 // --- Свежие данные -------------------------------------------------------------------------

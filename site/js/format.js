@@ -8,6 +8,11 @@ const F = {
   dayYear: dtf({day: 'numeric', month: 'long', year: 'numeric'}),
   wday: dtf({weekday: 'short', day: 'numeric', month: 'long'}),
   wdayYear: dtf({weekday: 'short', day: 'numeric', month: 'long', year: 'numeric'}),
+  dayShort: dtf({day: 'numeric', month: 'short'}),
+  dayShortYear: dtf({day: 'numeric', month: 'short', year: 'numeric'}),
+  // Календарные даты без времени (день рождения, «вернётся к …») — без сдвига по часовому поясу.
+  cal: dtf({day: 'numeric', month: 'long', timeZone: 'UTC'}),
+  calYear: dtf({day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC'}),
 };
 
 export function toDate(iso) {
@@ -55,6 +60,21 @@ export function gameDate(iso) {
 export function date(iso) {
   const d = toDate(iso);
   return d ? (sameYear(d) ? F.day : F.dayYear).format(d) : '—';
+}
+
+/** «10 нояб.» — для таблиц. */
+export function dateShort(iso) {
+  const d = toDate(iso);
+  return d ? (sameYear(d) ? F.dayShort : F.dayShortYear).format(d) : '—';
+}
+
+/** Календарная дата «2026-11-13» → «13 ноября» (год — если не текущий; withYear — всегда). */
+export function calDate(ymd, {withYear = false} = {}) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd || '');
+  if (!m) return '—';
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  // «14 марта 1988» без хвоста « г.», который добавляет браузер
+  return (withYear || +m[1] !== new Date().getFullYear() ? F.calYear : F.cal).format(d).replace(/\s*г\.$/, '');
 }
 
 /** «05:30». */
@@ -126,6 +146,11 @@ export function pct(x, digits = 1) {
   return x == null ? '—' : `${num(x, digits)}%`;
 }
 
+/** «38 лет», «21 год». */
+export function years(n) {
+  return n == null ? '—' : `${n} ${plural(n, 'год', 'года', 'лет')}`;
+}
+
 /** «0,5 игры», «1 игра», «5 игр». */
 export function games(x) {
   return `${smart(x)} ${plural(x, 'игра', 'игры', 'игр')}`;
@@ -163,8 +188,45 @@ const INJ = {
   Out: 'не играет', 'Day-To-Day': 'под вопросом', Questionable: 'под вопросом',
   Doubtful: 'вряд ли сыграет', Probable: 'скорее сыграет', Suspension: 'дисквалификация',
 };
-export function injuryStatus(s) {
-  return INJ[s] || s || '';
+// Статус к ближайшему матчу, как его пишет ESPN на своих страницах (OUT, GTD…).
+const INJ_GAME = {
+  OUT: 'не играет', O: 'не играет', GTD: 'под вопросом', DTD: 'под вопросом', Q: 'под вопросом',
+  D: 'вряд ли сыграет', P: 'скорее сыграет', SUSP: 'дисквалификация',
+};
+/** Что с травмированным сейчас: «не играет», «под вопросом»… (как на сайте ESPN, иначе — общий статус). */
+export function injuryLabel(inj) {
+  if (!inj) return '';
+  return INJ_GAME[inj.espnStatus] || INJ[inj.status] || inj.espnStatus || inj.status || 'травма';
+}
+
+// Что травмировано — по полю ESPN detail.type. Чего нет в словаре — показываем как в источнике.
+const INJ_TYPE = {
+  Ankle: 'голеностоп', Knee: 'колено', Hamstring: 'задняя поверхность бедра', Back: 'спина', 'Lower Back': 'поясница',
+  Calf: 'икроножная мышца', Foot: 'стопа', Toe: 'палец ноги', Heel: 'пятка', 'Plantar Fascia': 'подошвенная фасция',
+  Achilles: 'ахиллово сухожилие', Groin: 'паховая мышца', Hip: 'тазобедренный сустав', 'Hip Flexor': 'сгибатель бедра',
+  Thigh: 'бедро', Quadriceps: 'четырёхглавая мышца бедра', Adductor: 'приводящая мышца бедра', Shin: 'голень',
+  'Lower Leg': 'голень', Leg: 'нога', Shoulder: 'плечо', Elbow: 'локоть', Forearm: 'предплечье', Arm: 'рука',
+  Wrist: 'запястье', Hand: 'кисть', Finger: 'палец руки', Thumb: 'большой палец руки', Neck: 'шея', Head: 'голова',
+  Face: 'лицо', Nose: 'нос', Eye: 'глаз', Jaw: 'челюсть', Mouth: 'рот', Concussion: 'сотрясение мозга',
+  Chest: 'грудная клетка', Ribs: 'рёбра', Abdomen: 'мышцы живота', Oblique: 'косые мышцы живота', Pelvis: 'таз',
+  Glute: 'ягодичная мышца', Illness: 'болезнь', Rest: 'отдых', Personal: 'личные причины',
+  'Not Injury Related': 'не связано с травмой', Suspension: 'дисквалификация', Undisclosed: 'не раскрывается',
+};
+const LIMB = {Leg: 'нога', Arm: 'рука'};
+
+/** «Колено, левая нога», «Большой палец левой руки», «Болезнь»; типа нет в словаре — пишем как у ESPN. */
+export function injuryWhat(detail) {
+  if (!detail?.type) return null;
+  const what = INJ_TYPE[detail.type] || detail.type;
+  const left = detail.side === 'Left';
+  const sided = detail.side === 'Left' || detail.side === 'Right';
+  const limb = LIMB[detail.location];
+  const ofLimb = /^(.*) (руки|ноги)$/.exec(what); // «палец руки» → «палец левой руки»
+  let text = what;
+  if (sided && ofLimb) text = `${ofLimb[1]} ${left ? 'левой' : 'правой'} ${ofLimb[2]}`;
+  else if (sided && limb) text = `${what}, ${left ? 'левая' : 'правая'} ${limb}`;
+  else if (sided) text = `${what} (${left ? 'слева' : 'справа'})`;
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 export function placeText(lo, hi) {

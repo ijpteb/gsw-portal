@@ -113,7 +113,7 @@ function hero(d, gs) {
     h('ul', {class: 'hero-players-list'}, players.map((p, i) => h('li', {
       class: `hero-player${i === 0 ? ' is-top' : ''}`, style: {order: String(order[i]), '--i': String(i)}},
     h('a', {href: `#/player/${p.id}`, 'aria-label': `${p.name}: ${fmt.num(p.ppg)} очка за матч`},
-      h('img', {src: p.headshot, alt: '', width: 520, height: 380, decoding: 'async'}),
+      h('img', {src: p.headshot, alt: '', width: 520, height: 380, decoding: 'async', 'data-photo-id': p.id}),
       h('span', {class: 'hero-player-tag', 'aria-hidden': 'true'}, h('b', null, p.lastName || p.name), h('span', null, fmt.num(p.ppg)))))))) : null;
 
   const logo = h('img', {class: 'hero-logo', src: 'img/teams/gs-500.png', alt: 'Логотип Golden State Warriors',
