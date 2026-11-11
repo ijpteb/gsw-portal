@@ -1,0 +1,31 @@
+# Ручная проверка источников с серверов GitHub (основных и запасных).
+# Запуск: вкладка Actions → «Проверка источников» → Run workflow.
+name: Проверка источников
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    env:
+      BALLDONTLIE_API_KEY: ${{ secrets.BALLDONTLIE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Основные источники (ESPN, RSS)
+        continue-on-error: true
+        run: python3 tests/check_sources.py --save
+      - name: Запасные источники (NBA.com, balldontlie)
+        run: python3 tests/probe_backup_sources.py probe_out
+      - name: Сохранить ответы для фикстур
+        uses: actions/upload-artifact@v7
+        with:
+          name: probe-responses
+          path: |
+            probe_out/
+            tests/fixtures/new/
+          retention-days: 3
+          if-no-files-found: ignore

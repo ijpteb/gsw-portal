@@ -1,0 +1,20 @@
+# GitHub отключает расписание в публичном репозитории после 60 дней без активности.
+# Раз в неделю делаем маленький коммит, чтобы сбор данных не остановился посреди сезона.
+name: Поддержка расписания
+on:
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: |
+          date -u +%Y-%m-%dT%H:%M:%SZ > .github/keepalive.txt
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .github/keepalive.txt
+          git commit -m "keepalive: расписание сбора данных активно" && git push

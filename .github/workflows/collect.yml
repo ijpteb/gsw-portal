@@ -1,0 +1,45 @@
+# Сбор данных: каждые 5 минут (не в начало часа — тогда GitHub чаще опаздывает).
+# Сборщик сам решает, что пора обновлять: матч — каждую минуту, день матча — каждые 5 мин,
+# таблица/статистика — раз в час, новости — раз в 20 мин.
+name: Сбор данных
+on:
+  schedule:
+    - cron: "2-59/5 * * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Обновить всё прямо сейчас"
+        type: boolean
+        default: false
+permissions:
+  contents: write   # сохранить данные в ветку data
+  actions: write    # запустить публикацию сайта
+concurrency:
+  group: collect
+  cancel-in-progress: false
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ github.token }}
+      BALLDONTLIE_API_KEY: ${{ secrets.BALLDONTLIE_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Восстановить сохранённые данные
+        run: bash scripts/ci_restore_data.sh
+      - name: Собрать данные
+        run: python3 -m collector run ${{ inputs.force && '--force' || '' }}
+      - name: Сохранить и опубликовать
+        run: bash scripts/ci_publish.sh
+      - name: Матч идёт — обновлять каждую минуту
+        run: |
+          if python3 -c "import json,sys; sys.exit(0 if json.load(open('site/data/status.json'))['data']['liveWindow'] else 1)"; then
+            python3 -m collector run --live-loop --max-minutes 300 --after-update "bash scripts/ci_publish.sh"
+          else
+            echo "Матча сейчас нет."
+          fi

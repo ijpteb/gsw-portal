@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.DS_Store
+site/data/.tmp-*
+*.tmp
+site/data/
+site/img/
+.databranch/
+probe_out/
+tests/fixtures/new/
+ЗАДАНИЕ.md
