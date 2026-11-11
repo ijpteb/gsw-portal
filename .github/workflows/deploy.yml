@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.deployment.outputs.page_url || steps.deployment-retry.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
       - name: Подложить данные из ветки data
@@ -38,5 +38,15 @@ jobs:
       - uses: actions/upload-pages-artifact@v5
         with:
           path: site
+      # Сервис артефактов GitHub иногда ещё не видит только что загруженный архив: deploy-pages
+      # падает с «No artifacts named "github-pages"» (11.11.2026 — 3 из ~100 публикаций).
+      # Тогда ждём и пробуем ещё раз, а не ждём следующей публикации (в матче — минута без счёта).
       - id: deployment
+        uses: actions/deploy-pages@v5
+        continue-on-error: true
+      - name: Публикация не прошла — подождать и повторить
+        if: steps.deployment.outcome == 'failure'
+        run: sleep 20
+      - id: deployment-retry
+        if: steps.deployment.outcome == 'failure'
         uses: actions/deploy-pages@v5
