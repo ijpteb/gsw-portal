@@ -25,6 +25,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: bash scripts/ci_restore_data.sh
+      - name: Проставить версию кода сайта
+        # Pages разрешает браузерам хранить файлы 10 мин. Версия в адресах (css/app.css?v=…, импорты
+        # модулей) заставляет после обновления кода загрузить все файлы заново и одной версии.
+        # Публикации только с новыми данными версию не меняют — код берётся из кэша.
+        run: |
+          V="${GITHUB_SHA::8}"
+          find site -type f \( -name '*.js' -o -name '*.html' -o -name '*.css' \) -not -path 'site/data/*' -print0 \
+            | xargs -0 sed -i "s/__V__/$V/g"
+          if grep -rl --include='*.js' --include='*.html' --include='*.css' "__V__" site; then exit 1; fi
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5
         with:

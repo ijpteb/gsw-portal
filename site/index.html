@@ -2,125 +2,71 @@
 <html lang="ru">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#08122b">
+<meta name="description" content="Неофициальный портал болельщика Golden State Warriors: счёт, расписание, таблица, состав и новости сезона НБА 2026/27.">
 <title>Golden State Warriors · 2026/27</title>
-<style>
-  :root { color-scheme: dark; --navy: #0b1630; --line: #22356b; --gold: #ffc72c; --text: #fff;
-          --muted: #a9b6d3; --ok: #5fd38d; --bad: #ff8a8a; }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--navy); color: var(--text);
-         font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-  main { max-width: 44rem; margin: 0 auto; padding: 32px 16px 48px; }
-  h1 { font-size: clamp(1.8rem, 6vw, 2.6rem); line-height: 1.1; margin: 0 0 .5rem; }
-  h2 { font-size: 1.25rem; margin: 2rem 0 .25rem; }
-  .gold { color: var(--gold); }
-  p { margin: .5rem 0; }
-  .muted, .meta { color: var(--muted); }
-  .meta, .err { font-size: .9rem; }
-  ul { list-style: none; margin: 1rem 0; padding: 0; border-top: 1px solid var(--line); }
-  li { padding: .75rem 0; border-bottom: 1px solid var(--line); }
-  .row { display: flex; justify-content: space-between; align-items: baseline; gap: .25rem 1rem; flex-wrap: wrap; }
-  .name { font-weight: 600; }
-  .st { font-size: .9rem; }
-  .ok { color: var(--ok); } .stale { color: var(--gold); } .error, .err { color: var(--bad); }
-  .err { overflow-wrap: anywhere; }
-</style>
+<link rel="icon" type="image/png" href="img/teams/gs.png">
+<link rel="stylesheet" href="css/app.css?v=__V__">
+<script type="module" src="js/app.js?v=__V__"></script>
 </head>
 <body>
-<main>
-  <h1>Golden State Warriors <span class="gold">2026/27</span></h1>
-  <p class="muted">Портал болельщика в разработке: страницы появятся на следующем этапе.
-    Данные о команде уже собираются автоматически — ниже видно, что и когда обновлялось.</p>
+<a class="skip-link" href="#main">Перейти к содержанию</a>
 
-  <h2>Состояние данных</h2>
-  <p id="summary" class="muted">Загружаю…</p>
-  <ul id="list"></ul>
-  <p id="tz" class="meta"></p>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="#/" aria-label="Golden State Warriors — на главную">
+      <img class="brand-logo" src="img/teams/gs.png" alt="" width="36" height="36">
+      <span class="brand-text">Warriors <span class="brand-season">2026/27</span></span>
+    </a>
+    <nav class="nav-desktop" aria-label="Разделы сайта"></nav>
+    <div class="topbar-actions">
+      <button class="icon-btn" type="button" data-action="search" aria-label="Поиск игрока" title="Поиск игрока (клавиша /)" aria-haspopup="dialog"></button>
+      <a class="icon-btn" href="#/favorites" data-section="favorites" aria-label="Избранные игроки" title="Избранное"><span class="badge" data-fav-count hidden></span></a>
+      <button class="icon-btn" type="button" data-action="refresh" aria-label="Обновить данные" title="Обновить данные"></button>
+    </div>
+  </div>
+</header>
+
+<main id="main" tabindex="-1">
+  <noscript><p class="noscript">Для работы сайта нужен включённый JavaScript.</p></noscript>
 </main>
-<script>
-// Временная страница этапа 1: показывает data/status.json, который пишет сборщик.
-const SETS = [
-  ['schedule', 'Расписание и результаты', 'раз в час, в день матча — каждые 5 мин'],
-  ['live', 'Счёт идущего матча', 'во время матча — каждую минуту'],
-  ['team', 'Команда: баланс и место', 'раз в час'],
-  ['standings', 'Таблица Западной конференции', 'раз в час'],
-  ['roster', 'Состав', 'раз в час'],
-  ['injuries', 'Травмы', 'раз в час'],
-  ['player_stats', 'Статистика игроков', 'раз в час'],
-  ['team_stats', 'Статистика команды и места в лиге', 'раз в час'],
-  ['news', 'Новости', 'каждые 20 мин'],
-  ['logos', 'Логотипы команд', 'раз в неделю'],
-];
-const FMT = new Intl.DateTimeFormat('ru-RU', {day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'});
 
-function tzName() {
-  try {
-    const part = new Intl.DateTimeFormat('ru-RU', {timeZoneName: 'short'}).formatToParts(new Date())
-      .find(p => p.type === 'timeZoneName');
-    return part ? part.value : '';
-  } catch (e) { return ''; }
-}
+<footer class="site-footer">
+  <div class="footer-inner">
+    <p>Неофициальный сайт болельщика — не связан с клубом Golden State Warriors и НБА.</p>
+    <p>Данные, логотипы и фото — ESPN; новости — ESPN, Golden State of Mind, Спорт-Экспресс.
+      Время на сайте — по часовому поясу вашего устройства<span data-tz></span>.</p>
+    <p><a href="#/status">Состояние данных</a> — что и когда обновлялось.</p>
+  </div>
+</footer>
 
-function when(iso) {
-  const t = Date.parse(iso || '');
-  if (Number.isNaN(t)) return '—';
-  const s = Math.max(0, (Date.now() - t) / 1000);
-  let ago;
-  if (s < 90) ago = 'только что';
-  else if (s < 3600) ago = Math.round(s / 60) + ' мин назад';
-  else if (s < 86400) ago = Math.floor(s / 3600) + ' ч ' + Math.floor((s % 3600) / 60) + ' мин назад';
-  else ago = Math.floor(s / 86400) + ' дн назад';
-  return FMT.format(t) + ' (' + ago + ')';
-}
+<nav class="tabbar" aria-label="Основные разделы"></nav>
 
-function el(tag, cls, text) {
-  const e = document.createElement(tag);
-  if (cls) e.className = cls;
-  if (text != null) e.textContent = text;
-  return e;
-}
+<div class="overlay" id="menu" hidden>
+  <div class="overlay-backdrop" data-close></div>
+  <div class="sheet" role="dialog" aria-modal="true" aria-label="Все разделы">
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <nav class="sheet-nav" aria-label="Все разделы"></nav>
+  </div>
+</div>
 
-async function load() {
-  const summary = document.getElementById('summary');
-  try {
-    const r = await fetch('data/status.json', {cache: 'no-cache'});
-    if (!r.ok) throw new Error('ответ ' + r.status);
-    const st = (await r.json()).data;
-    let text = 'Последняя публикация данных: ' + when(st.generatedAt) + '.';
-    if (st.liveWindow) text += ' Сейчас идёт матч — счёт обновляется каждую минуту.';
-    else if (st.gameday) text += ' Сегодня день матча — расписание обновляется каждые 5 минут.';
-    summary.textContent = text;
-    const list = document.getElementById('list');
-    list.replaceChildren();
-    for (const [key, name, freq] of SETS) {
-      const d = st.datasets[key];
-      const li = el('li');
-      const row = el('div', 'row');
-      let label = '✓ в порядке', cls = 'ok';
-      if (!d) { label = '— ещё не собиралось'; cls = 'error'; }
-      else if (d.status === 'stale') { label = '⚠ источник не ответил, показаны прошлые данные'; cls = 'stale'; }
-      else if (d.status !== 'ok') { label = '✗ данных нет'; cls = 'error'; }
-      row.append(el('span', 'name', name), el('span', 'st ' + cls, label));
-      li.append(row);
-      if (d) {
-        const src = d.source && d.source.name ? d.source.name : '—';
-        let meta = 'Получено: ' + when(d.fetchedAt) + ' · источник: ' + src + ' · обновляется ' + freq;
-        if (key === 'live' && !st.liveWindow) meta += ' (сейчас матча нет)';
-        li.append(el('div', 'meta', meta));
-        if (d.status !== 'ok' && d.error) li.append(el('div', 'err', 'Последняя попытка ' + when(d.checkedAt) + ': ' + d.error));
-      }
-      list.append(li);
-    }
-  } catch (e) {
-    summary.textContent = 'Не удалось загрузить состояние данных (' + e.message + '). Обновите страницу чуть позже.';
-  }
-}
+<div class="overlay overlay-search" id="search" hidden>
+  <div class="overlay-backdrop" data-close></div>
+  <div class="search-panel" role="dialog" aria-modal="true" aria-label="Поиск игрока">
+    <div class="search-field">
+      <span class="search-icon" aria-hidden="true"></span>
+      <input type="search" id="search-input" placeholder="Например: Curry или 30" autocomplete="off"
+             autocapitalize="off" spellcheck="false" enterkeyhint="go" aria-label="Имя или номер игрока"
+             aria-describedby="search-hint">
+      <button class="search-close" type="button" data-close>Закрыть</button>
+    </div>
+    <ul class="search-results" id="search-results" aria-label="Игроки"></ul>
+    <p class="search-hint" id="search-hint">Стрелки ↑↓ — выбор, Enter — открыть, Esc — закрыть</p>
+    <div class="search-foot"></div>
+  </div>
+</div>
 
-const tz = tzName();
-document.getElementById('tz').textContent = 'Время — по часовому поясу вашего устройства' + (tz ? ' (' + tz + ')' : '') +
-  '. Страница обновляется сама раз в минуту.';
-load();
-setInterval(load, 60000);
-</script>
+<div class="toast" role="status" aria-live="polite"></div>
 </body>
 </html>
