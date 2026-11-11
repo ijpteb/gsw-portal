@@ -46,6 +46,34 @@ class Categories(unittest.TestCase):
         self.assertEqual(news.categorize("«Мы сделали то, что должны». Карри — о победе"), "interview")
         self.assertEqual(news.categorize("Карри пропустит матч из-за травмы"), "injury")
 
+    def test_real_headlines(self):
+        """Настоящие заголовки лент (10–11.11.2026): где категория неочевидна — «остальное»."""
+        c = news.categorize
+        # травмы
+        self.assertEqual(c("Warriors lose guard Brandon Williams to mild hamstring strain", "", "HeadlineNews"), "injury")
+        self.assertEqual(c("Warriors guard Will Richard out indefinitely with ligament tear in thumb"), "injury")
+        self.assertEqual(c("Warriors vs. Pelicans injury report: No Zion Williamson or Trey Murphy III"), "injury")
+        self.assertEqual(c("Warriors' Kristaps Porzingis to 'step away,' prioritize health", "", "HeadlineNews"), "injury")
+        # финт «ankle-breaker» — не травма; вопрос «сыграет ли» без травмы — неочевидно
+        self.assertEqual(c("Curry's ankle-breaker on Luka highlights Warriors' stunning 25-point comeback", "", "HeadlineNews"), "other")
+        self.assertEqual(c("Will Jordan Poole play vs Warriors as Pelicans come to Chase?",
+                           "He isn’t on the Pelicans’ injury report. He just sat"), "other")
+        # обмены: по тексту статьи
+        self.assertEqual(c("Warriors won’t give up picks for Myles Turner",
+                           "The Golden State Warriors would like to trade Kristaps Porzingis by December 15."), "trade")
+        self.assertEqual(c("What are the Warriors' options as Kristaps Porzingis remains away from the team?",
+                           "Can the Warriors find a trade partner? Void Kristaps Porzingis' contract?", "Story"), "trade")
+        # «продлили победную серию» — не продление контракта
+        self.assertEqual(c("«Голден Стэйт» первым в истории НБА выиграл восемь матчей подряд после старта с трех поражений",
+                           "«Уорриорз» разгромили «Нью-Орлеан» со счетом 138:87 и продлили победную серию до восьми игр."), "other")
+        # отчёт о матче: «traded baskets» в тексте ничего не значит
+        self.assertEqual(c("Warriors beat Suns", "The teams traded baskets late in the fourth.", "Recap"), "other")
+        # мнения ведущих ESPN и «по данным источников» — не интервью
+        self.assertEqual(c("Stephen A. says the championship window is STILL OPEN for Steph Curry & the Warriors", "", "Media"), "other")
+        self.assertEqual(c("Warriors withholding payments to Porzingis, sources say", "", "HeadlineNews"), "other")
+        self.assertEqual(c("Kerr on Draymond ejection: 'He crossed the line'"), "interview")
+        self.assertEqual(c("Карри: «Мы должны играть лучше в защите»"), "interview")
+
     def test_merge_dedup(self):
         a = {"title": "Same", "url": "https://x/1", "date": store.iso(store.now_utc()), "text": "", "source": "A"}
         b = dict(a, url="https://x/2")  # тот же заголовок — дубль

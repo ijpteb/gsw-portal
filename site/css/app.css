@@ -498,12 +498,32 @@ main {
 }
 .back-btn:hover { color: var(--text); border-color: var(--line-strong); }
 
-.soon { justify-items: start; padding-top: 24px; }
-.soon-icon { display: grid; place-items: center; width: 72px; height: 72px; border-radius: 22px; background: var(--gold-soft); color: var(--gold); }
 
 .article-title { font: 850 clamp(1.7rem, 6vw, 2.5rem)/1.12 var(--font-display); letter-spacing: -.02em; }
 .article-text { font-size: 18px; line-height: 1.65; color: var(--text-2); white-space: pre-line; }
+.article { display: grid; gap: 18px; }
 .article .btn { justify-self: start; }
+
+/* Лента новостей */
+.nf-hint { margin: 0; }
+.nf-groups { display: grid; gap: 22px; }
+.nf-group { display: grid; gap: 8px; }
+.nf-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.news-link.nf-link {
+  gap: 8px; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(17, 34, 74, .78), rgba(11, 23, 52, .78));
+  transition: border-color .25s var(--ease), background-color .2s var(--ease);
+}
+.news-link.nf-link:hover { border-color: var(--line-strong); }
+.nf-item.is-new .nf-link { border-color: rgba(255, 199, 44, .55); }
+.news-meta-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 10px; }
+.nf-new { font-size: 11px; font-weight: 800; letter-spacing: .04em; color: var(--bg); background: var(--gold); padding: 2px 8px; border-radius: 999px; }
+.nf-text {
+  color: var(--text-2); font-size: 14.5px; line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.news-page .more-btn { justify-self: center; }
+.nf-feeds.is-bad { color: #ffd66b; }
 
 .player-head { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; }
 .player-who { display: grid; gap: 8px; justify-items: start; }
@@ -1088,6 +1108,151 @@ a.ps-link:hover { color: var(--gold); }
   .cmp-val b { font-size: 26px; }
 }
 .quiet .rank-bar span, .no-anim .rank-bar span, .quiet .cmp-bar span, .no-anim .cmp-bar span { animation: none; }
+
+/* ---------- История клуба ---------- */
+
+.history { gap: 22px; }
+.hs-section { display: grid; gap: 14px; }
+.hs-head { display: grid; gap: 6px; }
+.hs-lead { max-width: 72ch; }
+.hs-section .sg-title.is-flash { animation: hs-text-flash 1.4s var(--ease); }
+@keyframes hs-text-flash { 0%, 40% { color: var(--gold); } 100% { color: var(--text); } }
+
+/* Достижения: крупные цифры и «чемпионские баннеры», как под крышей арены */
+.hs-hero {
+  overflow: hidden; isolation: isolate;
+  background:
+    radial-gradient(80% 90% at 100% 0%, rgba(29, 66, 138, .9), rgba(29, 66, 138, 0) 70%),
+    radial-gradient(60% 70% at 0% 100%, rgba(255, 199, 44, .12), rgba(255, 199, 44, 0) 65%),
+    linear-gradient(160deg, #10224d 0%, #0a1635 60%, #071029 100%);
+}
+.hs-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 16px; }
+@media (min-width: 900px) { .hs-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.hs-tile { display: grid; align-content: start; gap: 4px; min-width: 0; }
+.hs-tile-value {
+  font: 900 clamp(2.4rem, 11vw, 3.6rem)/.95 var(--font-display); letter-spacing: -.03em;
+  color: var(--gold); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.hs-tile-label { font-weight: 700; line-height: 1.3; }
+.hs-tile-note { font-size: 13px; line-height: 1.4; color: var(--text-3); }
+.hs-tile-check { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--win); }
+
+.hs-banners { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin: 4px 0 0; padding: 0; list-style: none; }
+@media (max-width: 479px) { .hs-banners { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 10px; } }
+.hs-banners li { border-radius: 6px; }
+.hs-banners li:has(:focus-visible) { outline: 2px solid var(--gold); outline-offset: 3px; }
+.hs-banner {
+  width: 100%; display: grid; justify-items: center; gap: 3px; padding: 12px 2px 24px; border: 0; cursor: pointer;
+  background: linear-gradient(180deg, #ffd860, var(--gold) 55%, #e2a900); color: var(--bg);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 82%, 0 100%);
+  transition: transform .25s var(--ease), filter .25s var(--ease);
+}
+.hs-banner:hover { transform: translateY(-3px); filter: brightness(1.07); }
+.hs-banner:focus-visible { outline: none; }
+.hs-banner-cap { font-size: 8.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; opacity: .7; }
+.hs-banner-year { font: 900 clamp(15px, 4.4vw, 22px)/1 var(--font-display); letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+
+.hs-nav { margin-top: -6px; }
+
+/* Чемпионские сезоны */
+.hs-timeline { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.hs-season-card {
+  display: grid; gap: 12px; padding: 18px; border-radius: var(--radius); outline: none;
+  background: linear-gradient(180deg, rgba(17, 34, 74, .92), rgba(11, 23, 52, .92));
+  border: 1px solid var(--line);
+}
+.hs-season-card:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.hs-season-card.is-flash { animation: hs-flash 1.6s var(--ease); }
+@keyframes hs-flash {
+  0%, 35% { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(255, 199, 44, .22); }
+  100% { border-color: var(--line); box-shadow: 0 0 0 0 rgba(255, 199, 44, 0); }
+}
+.hs-season-year { display: flex; align-items: baseline; gap: 10px; }
+.hs-season-num {
+  font: 900 clamp(2.2rem, 9vw, 3rem)/.95 var(--font-display); letter-spacing: -.03em;
+  color: var(--gold); font-variant-numeric: tabular-nums;
+}
+.hs-season-sub { font-size: 13px; color: var(--text-3); }
+.hs-season-body { display: grid; gap: 10px; min-width: 0; }
+.hs-season-name { font: 800 19px/1.25 var(--font-display); letter-spacing: -.01em; }
+.hs-vs { color: var(--text-3); font-weight: 600; }
+.hs-season-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+@media (min-width: 720px) {
+  .hs-season-card { grid-template-columns: 140px minmax(0, 1fr); gap: 22px; padding: 22px 24px; }
+  .hs-season-year { flex-direction: column; gap: 4px; padding-right: 18px; border-right: 1px solid var(--line); }
+}
+
+.hs-list { display: grid; gap: 6px; margin: 0; padding-left: 18px; color: var(--text-2); }
+.hs-list li::marker { color: var(--gold); }
+
+/* Источник у каждого блока и отметка о проверке */
+.hs-sources { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 12.5px; color: var(--text-3); }
+.hs-src {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 3px 10px; border-radius: 999px;
+  background: rgba(255, 255, 255, .05); border: 1px solid var(--line); color: var(--text-2); text-decoration: none;
+  transition: color .2s var(--ease), border-color .2s var(--ease);
+}
+.hs-src:hover { color: var(--gold); border-color: rgba(255, 199, 44, .4); }
+.hs-check {
+  display: flex; align-items: flex-start; gap: 7px; font-size: 13px; line-height: 1.45; color: var(--text-2);
+  padding: 8px 10px; border-radius: var(--radius-sm); background: rgba(79, 216, 142, .07); border: 1px solid rgba(79, 216, 142, .2);
+}
+.hs-check .icon { flex: none; margin-top: 2px; color: var(--win); }
+.hs-check b { color: var(--win); font-weight: 700; }
+.hs-asof { font-size: 12.5px; color: var(--text-3); }
+
+/* Легенды: «майка» с номером и инициалами вместо фото */
+.hs-legends { display: grid; gap: 14px; }
+@media (min-width: 700px) { .hs-legends { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1120px) { .hs-legends { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.hs-legend { gap: 14px; }
+.hs-legend > .hs-sources { margin-top: auto; }
+.hs-legend-head { display: flex; align-items: center; gap: 16px; }
+.hs-jersey {
+  --jersey: polygon(26% 0, 38% 0, 44% 12%, 56% 12%, 62% 0, 74% 0, 78% 18%, 90% 30%, 90% 100%, 10% 100%, 10% 30%, 22% 18%);
+  flex: none; position: relative; isolation: isolate; width: 78px; height: 86px;
+  display: grid; align-content: center; justify-items: center; padding-top: 14px;
+  background: var(--gold); clip-path: var(--jersey);
+}
+.hs-jersey::before {
+  content: ""; position: absolute; inset: 3px; z-index: -1; clip-path: var(--jersey);
+  background: linear-gradient(180deg, #2a58b3, var(--royal));
+}
+.hs-jersey-num { font: 900 30px/1 var(--font-display); letter-spacing: -.02em; color: var(--gold); font-variant-numeric: tabular-nums; }
+.hs-jersey-ini { margin-top: 3px; font-size: 9.5px; font-weight: 800; letter-spacing: .14em; color: rgba(255, 255, 255, .78); }
+.hs-legend-who { display: grid; gap: 4px; justify-items: start; min-width: 0; }
+.hs-legend-name { font: 800 20px/1.2 var(--font-display); letter-spacing: -.01em; }
+.hs-hof { margin-top: 2px; background: var(--gold-soft); color: var(--gold); }
+
+/* Рекорды */
+.hs-records { display: grid; gap: 14px; }
+@media (min-width: 640px) { .hs-records { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1120px) { .hs-records { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.hs-record { gap: 8px; }
+.hs-record-value {
+  font: 900 clamp(2.6rem, 12vw, 3.4rem)/.95 var(--font-display); letter-spacing: -.03em;
+  color: var(--gold); font-variant-numeric: tabular-nums;
+}
+.hs-record-what { font: 750 17px/1.3 var(--font); }
+.hs-record-who { font-size: 14px; color: var(--text-2); }
+.hs-record-who b { color: var(--text); }
+.hs-record-text { color: var(--text-2); }
+.hs-record > .hs-sources { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--line); }
+
+/* Интересные факты */
+.hs-fact-list { display: grid; gap: 0; margin: 0; padding: 4px 20px; list-style: none; }
+.hs-fact { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 12px; padding: 16px 0; border-top: 1px solid var(--line); }
+.hs-fact:first-child { border-top: 0; }
+.hs-fact-year { font: 800 15px/1.5 var(--font-display); color: var(--gold); font-variant-numeric: tabular-nums; }
+.hs-fact-body { display: grid; gap: 8px; min-width: 0; }
+@media (min-width: 768px) { .hs-fact-list { padding: 6px 24px; } .hs-fact { grid-template-columns: 64px minmax(0, 1fr); } }
+
+/* Список источников */
+.hs-source-list { display: grid; gap: 10px; margin: 0; padding-left: 24px; font-size: 14px; line-height: 1.45; }
+.hs-source-list li { overflow-wrap: anywhere; }
+.hs-source-list li::marker { color: var(--text-3); }
+.hs-source-list a { color: var(--text); text-decoration-color: rgba(255, 255, 255, .3); }
+.hs-source-list a:hover { color: var(--gold); }
 
 /* ---------- Плавные переходы (View Transitions) ---------- */
 /* Фото игрока «перелетает» между списком и карточкой; карточки состава переезжают при сортировке. */

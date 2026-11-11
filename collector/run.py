@@ -224,17 +224,17 @@ class Runner:
         prev_items = ((prev or {}).get("data") or {}).get("items") or []
         prev_items = [i for i in prev_items if rss.still_relevant(i)]
         fresh, feeds = [], []
-        sources = [("ESPN", espn.URLS["news"], lambda: espn.parse_news(espn.fetch("news")))] + [
-            (f["name"], f["url"], lambda f=f: rss.fetch_feed(f)) for f in rss.FEEDS]
-        for name, url, fn in sources:
+        sources = [("ESPN", espn.URLS["news"], "en", lambda: espn.parse_news(espn.fetch("news")))] + [
+            (f["name"], f["url"], f["lang"], lambda f=f: rss.fetch_feed(f)) for f in rss.FEEDS]
+        for name, url, lang, fn in sources:
             try:
                 items = fn()
                 fresh += items
-                feeds.append({"name": name, "url": url, "ok": True, "count": len(items),
+                feeds.append({"name": name, "url": url, "lang": lang, "ok": True, "count": len(items),
                               "error": None, "checkedAt": store.iso(self.now)})
             except Exception as e:  # одна лента упала — остальные работают
                 msg = str(e) if isinstance(e, SourceError) else f"неожиданный формат ({type(e).__name__})"
-                feeds.append({"name": name, "url": url, "ok": False, "count": 0,
+                feeds.append({"name": name, "url": url, "lang": lang, "ok": False, "count": 0,
                               "error": msg, "checkedAt": store.iso(self.now)})
         if not any(f["ok"] for f in feeds):
             env = store.save_failure("news", "; ".join(f"{f['name']}: {f['error']}" for f in feeds),

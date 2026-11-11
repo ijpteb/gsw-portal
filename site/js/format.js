@@ -102,6 +102,20 @@ export function dateParts(iso) {
   return {wd: FWD.format(d), day: String(d.getDate()), mon};
 }
 
+/** День по часовому поясу устройства: «2026-11-10» (для группировки ленты). */
+export function localDay(iso) {
+  const d = toDate(iso);
+  return d ? `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}` : null;
+}
+
+/** Заголовок дня в ленте: «Сегодня», «Вчера», «Пн, 9 ноября». */
+export function dayTitle(iso) {
+  const d = toDate(iso);
+  if (!d) return 'Дата не указана';
+  const s = relDay(d) || gameDate(iso);
+  return s[0].toUpperCase() + s.slice(1);
+}
+
 /** «2-е место», «1-е место». */
 export function place(n) {
   return n == null ? '—' : `${n}-е место`;

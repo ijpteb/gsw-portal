@@ -10,6 +10,7 @@ import {openOverlay, closeOverlay, currentOverlay} from './overlay.js?v=__V__';
 import {canAnimate, findPhoto, morphPage} from './transitions.js?v=__V__';
 import home from './pages/home.js?v=__V__';
 import newsItem from './pages/news-item.js?v=__V__';
+import news from './pages/news.js?v=__V__';
 import player from './pages/player.js?v=__V__';
 import roster from './pages/roster.js?v=__V__';
 import schedule from './pages/schedule.js?v=__V__';
@@ -17,7 +18,7 @@ import standings from './pages/standings.js?v=__V__';
 import stats from './pages/stats.js?v=__V__';
 import compare from './pages/compare.js?v=__V__';
 import favorites from './pages/favorites.js?v=__V__';
-import soon from './pages/soon.js?v=__V__';
+import historyPage from './pages/history.js?v=__V__';
 import status from './pages/status.js?v=__V__';
 
 const notFound = {
@@ -30,9 +31,9 @@ const notFound = {
   },
 };
 
-const soonIds = SECTIONS.filter((s) => s.stage).map((s) => s.id).join('|');
 const ROUTES = [
   [/^\/?$/, home],
+  [/^\/news$/, news],
   [/^\/news\/([\w-]+)$/, newsItem],
   [/^\/player\/(\d+)$/, player],
   [/^\/roster$/, roster],
@@ -42,7 +43,7 @@ const ROUTES = [
   [/^\/compare$/, compare],
   [/^\/favorites$/, favorites],
   [/^\/status$/, status],
-  [new RegExp(`^/(${soonIds})$`), soon],
+  [/^\/history$/, historyPage],
 ];
 
 const main = document.getElementById('main');
@@ -152,9 +153,10 @@ async function route() {
       current = ctrl || {};
       if (savedY != null) {
         window.scrollTo(0, savedY);
-        // Вернулись из карточки игрока — фокус на его ссылке в списке (удобно с клавиатуры).
-        const back = playerIdOf(fromPath);
-        if (back && !first) main.querySelector(`a[href="#/player/${back}"]`)?.focus({preventScroll: true});
+        // Вернулись из карточки игрока или новости — фокус на её ссылке в списке (удобно с клавиатуры).
+        if (!first && /^\/(player|news)\/[\w-]+$/.test(fromPath || '')) {
+          main.querySelector(`a[href="#${fromPath}"]`)?.focus({preventScroll: true});
+        }
       }
     } catch (err) {
       if (token !== navToken) return;

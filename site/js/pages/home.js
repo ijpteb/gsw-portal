@@ -3,11 +3,11 @@
 import * as data from '../data.js?v=__V__';
 import * as fmt from '../format.js?v=__V__';
 import {h, icon, sourceLine, teamLogo, emptyState, noData, skeleton, stagger, usable} from '../ui.js?v=__V__';
+import {byDate, newsMeta} from '../news.js?v=__V__';
 import {lastGame, nextGame, liveGame} from '../games.js?v=__V__';
 import {loadFavorites, favoritesBlock} from '../components.js?v=__V__';
 
 const GS_FALLBACK = {abbr: 'GS', name: 'Golden State Warriors', shortName: 'Warriors', logo: 'img/teams/gs.png'};
-const CATS = {injury: 'Травмы', trade: 'Обмены', interview: 'Интервью', other: 'Остальное'};
 
 export default {
   section: () => 'home',
@@ -325,19 +325,13 @@ function newsCard(d) {
   const env = d.news;
   const more = h('a', {class: 'card-link', href: '#/news'}, 'Все новости', icon('chevron', 16));
   if (!usable(env)) return card('area-news', 'Последние новости', more, noData(env, 'Новости'));
-  const items = [...env.data.items].sort((a, b) => fmt.ms(b.date) - fmt.ms(a.date)).slice(0, 5);
+  const items = byDate(env.data.items).slice(0, 5);
   if (!items.length) {
     return card('area-news', 'Последние новости', more, emptyState({iconName: 'news', title: 'Новостей пока нет'}), sourceLine(env));
   }
   return card('area-news', 'Последние новости', more,
     h('ul', {class: 'news-list'}, items.map((it) => h('li', null,
-      h('a', {class: 'news-link', href: `#/news/${it.id}`},
-        h('span', {class: 'news-meta'},
-          h('span', {class: `cat cat-${it.category || 'other'}`}, CATS[it.category] || CATS.other),
-          h('span', null, it.source),
-          h('time', {datetime: it.date}, fmt.agoOrDate(it.date)),
-          it.lang && it.lang !== 'ru' ? h('span', {class: 'lang', title: 'Язык источника'}, it.lang.toUpperCase()) : null),
-        h('span', {class: 'news-title'}, it.title))))),
+      h('a', {class: 'news-link', href: `#/news/${it.id}`}, newsMeta(it), h('span', {class: 'news-title'}, it.title))))),
     sourceLine(env));
 }
 
