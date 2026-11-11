@@ -130,6 +130,15 @@ class LiveTask(unittest.TestCase):
         self.assertEqual(state, "pre")
         self.assertEqual(r.results["live"], "ok (11/11 - 9:30 PM EST)")
 
+    def test_seconds_to_next_game(self):
+        def at(h, m=0, day=12):
+            return run.Runner(data_dir=self.dir, img_dir=self.dir / "img",
+                              now=datetime(2026, 11, day, h, m, tzinfo=timezone.utc), log=lambda *_: None)
+        self.assertEqual(at(2, 0).seconds_to_next_game(), 30 * 60)   # @HOU 12.11 02:30 UTC
+        self.assertEqual(at(23, 30, day=11).seconds_to_next_game(), 3 * 3600)
+        nxt = at(3, 0).seconds_to_next_game()                         # HOU уже начался — следующий матч
+        self.assertGreater(nxt, 12 * 3600)
+
     def test_source_failure_has_no_score(self):
         r = run.Runner(data_dir=self.dir, img_dir=self.dir / "img",
                        now=datetime(2026, 11, 12, 3, tzinfo=timezone.utc), log=lambda *_: None)

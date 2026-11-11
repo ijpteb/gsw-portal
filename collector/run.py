@@ -101,6 +101,15 @@ class Runner:
                 return True
         return False
 
+    def seconds_to_next_game(self) -> float | None:
+        """Через сколько секунд начнётся ближайший незавершённый матч (None — впереди матчей нет)."""
+        ahead = []
+        for g in self.games():
+            dt = self._game_dt(g)
+            if dt and dt > self.now and not g.get("completed"):
+                ahead.append((dt - self.now).total_seconds())
+        return min(ahead) if ahead else None
+
     def live_game(self) -> dict | None:
         """Матч, который может идти прямо сейчас (по расписанию), если не завершён."""
         for g in self.games():
@@ -380,6 +389,13 @@ def loop(max_minutes: int = config.LOOP_MAX_MINUTES, after_update: str | None = 
                 published = fp  # не удалось опубликовать — попробуем на следующем проходе
         if clock() >= deadline:
             log("Время дежурства вышло.")
+            return "time"
+        # Скоро матч, а дежурства на всё окно матча не хватит — выходим «по времени» сейчас: задача
+        # GitHub сама поставит свежий запуск, и пересменка будет до матча, а не посреди него.
+        before = getattr(r, "seconds_to_next_game", lambda: None)()
+        if (before is not None and config.LIVE_BEFORE < before <= config.PREGAME_REFRESH
+                and deadline - clock() < before + config.LIVE_AFTER):
+            log("Скоро матч, а дежурства на весь матч не хватит — уступаю смену свежему запуску.")
             return "time"
         # Во время матча (и за 20 мин до начала) смену не передаём: пересменка — до минуты без
         # обновлений счёта. Следующий запуск подождёт в очереди до конца матча; предел времени — всегда.

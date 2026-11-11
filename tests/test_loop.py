@@ -136,6 +136,25 @@ class Loop(unittest.TestCase):
         reason = self.loop(lambda first: Live("A"), handover=lambda: True, max_minutes=2, tick=60)
         self.assertEqual(reason, "time")
 
+    def pregame(self, minutes_to_game, max_minutes):
+        class Before(FakeRunner):
+            def seconds_to_next_game(inner):
+                return minutes_to_game * 60
+        checks = iter([False, True])
+        return self.loop(lambda first: Before("A"), handover=lambda: next(checks), max_minutes=max_minutes)
+
+    def test_fresh_shift_before_game(self):
+        # матч через 30 мин, дежурства осталось 60 мин — на весь матч не хватит: уступаем сразу
+        self.assertEqual(self.pregame(30, 60), "time")
+        self.assertEqual(self.clock.sleeps, [])
+
+    def test_no_early_exit_when_time_is_enough(self):
+        self.assertEqual(self.pregame(30, 320), "handover")  # 320 мин хватит на матч целиком
+
+    def test_no_early_exit_outside_pregame_window(self):
+        self.assertEqual(self.pregame(90, 60), "handover")   # до матча ещё далеко
+        self.assertEqual(self.pregame(10, 60), "handover")   # уже окно матча — там держит live
+
     def test_handover_command(self):
         self.assertTrue(run._succeeds("exit 0"))
         self.assertFalse(run._succeeds("exit 1"))
