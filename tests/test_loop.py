@@ -114,6 +114,28 @@ class Loop(unittest.TestCase):
         reason = self.loop(runners(*[RuntimeError("сбой")] * run.LOOP_MAX_CRASHES))
         self.assertEqual(reason, "error")
 
+    def test_no_handover_during_game(self):
+        class Live(FakeRunner):
+            def __init__(inner, fp, state):
+                super().__init__(fp)
+                inner.live_state = state
+        states = iter(["pre", "in", "in", "post"])
+        asked = []
+
+        def handover():  # следующий запуск ждёт в очереди всё время
+            asked.append(1)
+            return True
+        reason = self.loop(lambda first: Live("A", next(states)), handover=handover)
+        self.assertEqual(reason, "handover")
+        self.assertEqual(len(asked), 1)              # спросили только после конца матча
+        self.assertEqual(len(self.clock.sleeps), 3)  # три прохода до и во время матча
+
+    def test_time_limit_during_game(self):
+        class Live(FakeRunner):
+            live_state = "in"
+        reason = self.loop(lambda first: Live("A"), handover=lambda: True, max_minutes=2, tick=60)
+        self.assertEqual(reason, "time")
+
     def test_handover_command(self):
         self.assertTrue(run._succeeds("exit 0"))
         self.assertFalse(run._succeeds("exit 1"))

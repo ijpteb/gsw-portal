@@ -36,6 +36,7 @@ class Runner:
         self.log = log
         self.results: dict[str, str] = {}
         self.last_fingerprint: str | None = None  # заполняет write_status()
+        self.live_state: str | None = None  # матч после прохода: 'pre' / 'in' / 'post' или None
 
     # --- общие механизмы ------------------------------------------------------
 
@@ -166,6 +167,9 @@ class Runner:
             (espn.source("live", url), lambda: {"game": espn.parse_scoreboard(espn.fetch_json_url(url))}),
         ])
         game = ((env.get("data") or {}).get("game")) if env.get("status") == "ok" else None
+        if game and self.results.get("live") == "ok":
+            # Счёт — в журнал дежурства: по нему видно, когда сайт узнал о каждом очке (замер задержки).
+            self.results["live"] = f"ok ({live_note(game)})"
         return game.get("state") if game else None
 
     def task_team(self):
@@ -297,7 +301,7 @@ class Runner:
     def run(self) -> dict[str, str]:
         self.task_schedule()
         state_before = (((self.load("live") or {}).get("data") or {}).get("game") or {}).get("state")
-        state = self.task_live()
+        state = self.live_state = self.task_live()
         # Матч только что закончился — сразу обновляем счёт в расписании, таблицу и статистику.
         after_game = state == "post" and state_before in ("in", "pre")
         if after_game:
@@ -310,6 +314,15 @@ class Runner:
         self.task_news()
         self.write_status()
         return self.results
+
+
+def live_note(game: dict) -> str:
+    """Для журнала: «54:50, 5:12 - 2nd» (очки ГСВ первыми) или время начала, если матч ещё не начался."""
+    sc = game.get("score") or {}
+    when = game.get("shortDetail") or game.get("state") or "?"
+    if sc.get("team") is None or sc.get("opp") is None:
+        return when
+    return f"{sc['team']}:{sc['opp']}, {when}"
 
 
 def run_once(**kw) -> dict[str, str]:
@@ -329,7 +342,7 @@ def loop(max_minutes: int = config.LOOP_MAX_MINUTES, after_update: str | None = 
     проход (скачивается только то, что пора: матч — каждую минуту, день матча — раз в 5 мин,
     новости — раз в 20 мин, остальное — раз в час) и публикация `after_update`, если данные
     изменились. Выход — когда команда `handover` сообщает (код 0), что ждёт следующий запуск
-    (ему и передаём дежурство), или когда вышло время. Возвращает причину: 'handover' / 'time',
+    (ему и передаём дежурство; во время матча — только после его конца), или когда вышло время. Возвращает причину: 'handover' / 'time',
     или 'error', если сборщик упал LOOP_MAX_CRASHES раз подряд.
     """
     data_dir = kw.get("data_dir") or config.DATA_DIR
@@ -368,7 +381,10 @@ def loop(max_minutes: int = config.LOOP_MAX_MINUTES, after_update: str | None = 
         if clock() >= deadline:
             log("Время дежурства вышло.")
             return "time"
-        if newer_waits():
+        # Во время матча (и за 20 мин до начала) смену не передаём: пересменка — до минуты без
+        # обновлений счёта. Следующий запуск подождёт в очереди до конца матча; предел времени — всегда.
+        in_game = getattr(r, "live_state", None) in ("pre", "in")
+        if not in_game and newer_waits():
             log("Ждёт следующий запуск — передаю ему дежурство.")
             return "handover"
         sleep(max(1.0, tick - (clock() - started)))

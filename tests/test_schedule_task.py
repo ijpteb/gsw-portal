@@ -88,5 +88,55 @@ class ScheduleTask(unittest.TestCase):
         self.assertEqual(post["fetchedAt"], store.iso(when))
 
 
+class LiveTask(unittest.TestCase):
+    """Идёт матч: счёт попадает и в live.json, и в строку журнала дежурства (по ней замеряем задержку)."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self.tmp.name)
+        self.raw = fx("espn_schedule.json")
+        store.save_ok("schedule", espn.parse_schedule(self.raw), {"name": "ESPN", "url": None},
+                      data_dir=self.dir, when=datetime(2026, 11, 11, 21, tzinfo=timezone.utc))
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def scoreboard(self, state, detail, gs=None, hou=None):
+        """Настоящее событие календаря ESPN (12.11.2026 @HOU) в нужном состоянии — как на табло дня."""
+        ev = copy.deepcopy(next(e for e in self.raw["events"] if e["id"] == "401909974"))
+        c = ev["competitions"][0]
+        c["status"]["type"].update({"state": state, "shortDetail": detail})
+        for comp in c["competitors"]:
+            pts = gs if comp["id"] == "9" else hou
+            if pts is not None:
+                comp["score"] = {"value": float(pts), "displayValue": str(pts)}
+        return {"events": [ev]}
+
+    def live(self, board):
+        r = run.Runner(data_dir=self.dir, img_dir=self.dir / "img",
+                       now=datetime(2026, 11, 12, 3, tzinfo=timezone.utc), log=lambda *_: None)
+        with mock.patch.object(espn, "fetch_json_url", return_value=board):
+            state = r.task_live()
+        return r, state
+
+    def test_score_in_log(self):
+        r, state = self.live(self.scoreboard("in", "5:12 - 2nd", gs=54, hou=50))
+        self.assertEqual(state, "in")
+        self.assertEqual(r.results["live"], "ok (54:50, 5:12 - 2nd)")
+        self.assertEqual(store.load("live", self.dir)["data"]["game"]["score"], {"team": 54, "opp": 50})
+
+    def test_not_started(self):
+        r, state = self.live(self.scoreboard("pre", "11/11 - 9:30 PM EST"))
+        self.assertEqual(state, "pre")
+        self.assertEqual(r.results["live"], "ok (11/11 - 9:30 PM EST)")
+
+    def test_source_failure_has_no_score(self):
+        r = run.Runner(data_dir=self.dir, img_dir=self.dir / "img",
+                       now=datetime(2026, 11, 12, 3, tzinfo=timezone.utc), log=lambda *_: None)
+        with mock.patch.object(espn, "fetch_json_url", side_effect=SourceError("таймаут")):
+            self.assertIsNone(r.task_live())
+        self.assertNotIn("ok", r.results["live"])
+
+
 if __name__ == "__main__":
     unittest.main()
