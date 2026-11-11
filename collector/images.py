@@ -59,6 +59,9 @@ def cache_logos(teams: list[dict], img_dir: Path | None = None, force: bool = Fa
     for t in teams:
         if save_image(t["src"], team_logo_path(t["abbr"], img_dir), 200, 200, force):
             ok += 1
+        if t["abbr"].upper() == config.ESPN_TEAM_ABBR:
+            # Крупный логотип ГСВ — для баннера на главной (если не скачается — страница возьмёт 200×200).
+            save_image(t["src"], team_logo_path(f"{t['abbr']}-500", img_dir), 500, 500, force)
     return ok, len(teams)
 
 

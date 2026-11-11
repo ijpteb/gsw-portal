@@ -149,5 +149,15 @@ class RequestProblems(unittest.TestCase):
                                                "x.example 404 0.2 с"])
 
 
+class Logos(unittest.TestCase):
+    def test_big_gsw_logo(self):
+        from collector import images
+        calls = []
+        with mock.patch.object(images, "save_image", lambda src, dest, w, h, force=False: calls.append((dest.name, w)) or True):
+            ok, total = images.cache_logos([{"abbr": "GS", "src": "x"}, {"abbr": "HOU", "src": "y"}], Path("/tmp/i"))
+        self.assertEqual((ok, total), (2, 2))
+        self.assertEqual(calls, [("gs.png", 200), ("gs-500.png", 500), ("hou.png", 200)])
+
+
 if __name__ == "__main__":
     unittest.main()
