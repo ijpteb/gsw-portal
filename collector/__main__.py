@@ -15,9 +15,14 @@ def main(argv=None) -> int:
     r.add_argument("--force", action="store_true", help="обновить всё прямо сейчас")
     r.add_argument("--only", default="", help="через запятую: schedule,live,roster,injuries,player_stats,"
                                               "gamelog,standings,team_stats,news,team,logos")
-    r.add_argument("--live-loop", action="store_true", help="во время матча обновлять счёт раз в минуту")
-    r.add_argument("--max-minutes", type=int, default=300)
-    r.add_argument("--after-update", default=None, help="команда, выполняемая после каждого live-обновления")
+    lp = sub.add_parser("loop", help="дежурство: обновлять данные непрерывно (раз в минуту — то, что пора)")
+    lp.add_argument("--force", action="store_true", help="в первом проходе обновить всё")
+    lp.add_argument("--max-minutes", type=int, default=config.LOOP_MAX_MINUTES)
+    lp.add_argument("--tick", type=float, default=config.LOOP_TICK, help="секунд между проходами")
+    lp.add_argument("--after-update", default=None, help="команда публикации — когда данные изменились")
+    lp.add_argument("--handover", default=None,
+                    help="команда-проверка после каждого прохода: код 0 — ждёт следующий запуск, пора выйти")
+    lp.add_argument("--exit-reason-file", default=None, help="куда записать причину выхода: handover / time")
     sub.add_parser("status", help="показать состояние данных")
     a = ap.parse_args(argv)
 
@@ -30,10 +35,14 @@ def main(argv=None) -> int:
             print(f"{name:28} {d['status']:6} получено {d['fetchedAt'] or '—'}  {d['error'] or ''}")
         return 0
 
-    from .run import live_loop, run_once
-    if a.live_loop:
-        live_loop(max_minutes=a.max_minutes, after_update=a.after_update)
-        return 0
+    from .run import loop, run_once
+    if a.cmd == "loop":
+        reason = loop(max_minutes=a.max_minutes, after_update=a.after_update, handover=a.handover,
+                      force=a.force, tick=a.tick, log=lambda m: print(m, flush=True))
+        if a.exit_reason_file:
+            with open(a.exit_reason_file, "w", encoding="utf-8") as f:
+                f.write(reason)
+        return 1 if reason == "error" else 0
     only = {x.strip() for x in a.only.split(",") if x.strip()} or None
     res = run_once(force=a.force, only=only)
     for name, msg in res.items():

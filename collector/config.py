@@ -49,6 +49,12 @@ LIVE_POLL = 60                 # во время матча
 RETRY_AFTER_FAILURE = 10 * 60  # если источник не ответил — не чаще раза в 10 мин
 IMAGE_MAX_AGE = 7 * 24 * HOUR
 
+# Дежурство (python3 -m collector loop): проход раз в LOOP_TICK секунд. Каждый проход обновляет
+# только то, что пора, поэтому «пустой» проход ничего не скачивает. Частоту самих данных задают
+# INTERVALS / SCHEDULE_GAMEDAY / LIVE_POLL — шаг дежурства должен быть не больше самой частой из них.
+LOOP_TICK = LIVE_POLL
+LOOP_MAX_MINUTES = 320         # задача GitHub живёт не дольше 6 ч — оставляем запас
+
 # Окно «день матча»: от 12 ч до начала и до 5 ч после начала.
 GAMEDAY_BEFORE = 12 * HOUR
 GAMEDAY_AFTER = 5 * HOUR

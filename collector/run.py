@@ -3,7 +3,7 @@
 
 Запуск: python3 -m collector run            — обновить то, что пора
         python3 -m collector run --force    — обновить всё сейчас (кнопка «Обновить» для владельца)
-        python3 -m collector run --live-loop — во время матча обновлять счёт раз в минуту
+        python3 -m collector loop           — дежурство: обновлять непрерывно (так работает на GitHub)
 """
 from __future__ import annotations
 
@@ -21,6 +21,7 @@ from .http import REQUEST_LOG, SourceError
 from .sources import espn, rss
 
 Attempt = tuple[dict, Callable[[], object]]  # (описание источника, функция «скачать и разобрать»)
+LOOP_MAX_CRASHES = 5  # столько сбоев сборщика подряд — и дежурство останавливается с ошибкой
 
 
 class Runner:
@@ -34,6 +35,7 @@ class Runner:
         self.now = now or store.now_utc()
         self.log = log
         self.results: dict[str, str] = {}
+        self.last_fingerprint: str | None = None  # заполняет write_status()
 
     # --- общие механизмы ------------------------------------------------------
 
@@ -242,7 +244,8 @@ class Runner:
             "datasets": datasets,
         }
         store.save_ok("status", status, {"name": "сборщик", "url": None}, data_dir=self.data_dir, when=self.now)
-        (self.data_dir / "fingerprint.txt").write_text(self.fingerprint(), encoding="utf-8")
+        self.last_fingerprint = self.fingerprint()
+        (self.data_dir / "fingerprint.txt").write_text(self.last_fingerprint, encoding="utf-8")
 
     def fingerprint(self) -> str:
         """Отпечаток содержимого без отметок «проверено в…»: меняется — значит, сайт пора переопубликовать."""
@@ -290,24 +293,80 @@ def run_once(**kw) -> dict[str, str]:
     return res
 
 
-def live_loop(max_minutes: int = 300, after_update: str | None = None, log=print, **kw):
-    """Пока идёт (или вот-вот начнётся) матч: каждые LIVE_POLL секунд — обычный проход
-    (счёт матча обновляется всегда, остальное — по своему расписанию) и публикация."""
-    deadline = time.time() + max_minutes * 60
-    while time.time() < deadline:
-        r = Runner(log=log, **kw)
-        res = r.run()
-        log(f"{store.iso(store.now_utc())} " + ", ".join(f"{k}: {v}" for k, v in res.items()))
-        _hook(after_update, log)
-        if not r.live_game():
-            log("Матча сейчас нет — выходим из режима live.")
-            return
-        time.sleep(config.LIVE_POLL)
+def loop(max_minutes: int = config.LOOP_MAX_MINUTES, after_update: str | None = None,
+         handover: str | None = None, force: bool = False, tick: float = config.LOOP_TICK,
+         log=print, sleep=time.sleep, clock=time.monotonic, make_runner=None, **kw) -> str:
+    """Дежурство сборщика.
+
+    GitHub запускает задачи по расписанию нерегулярно (cron «каждые 5 минут» на деле срабатывал
+    примерно раз в час), поэтому одна задача работает непрерывно: раз в `tick` секунд — обычный
+    проход (скачивается только то, что пора: матч — каждую минуту, день матча — раз в 5 мин,
+    новости — раз в 20 мин, остальное — раз в час) и публикация `after_update`, если данные
+    изменились. Выход — когда команда `handover` сообщает (код 0), что ждёт следующий запуск
+    (ему и передаём дежурство), или когда вышло время. Возвращает причину: 'handover' / 'time',
+    или 'error', если сборщик упал LOOP_MAX_CRASHES раз подряд.
+    """
+    data_dir = kw.get("data_dir") or config.DATA_DIR
+    if make_runner is None:
+        def make_runner(first: bool) -> Runner:
+            return Runner(force=force and first, log=log, **kw)
+    # Команды можно передать и функциями (так проще в тестах).
+    publish = after_update if callable(after_update) else (lambda: _hook(after_update, log))
+    newer_waits = handover if callable(handover) else (lambda: bool(handover) and _succeeds(handover))
+    deadline = clock() + max_minutes * 60
+    published = _read_fingerprint(data_dir)  # то, что уже опубликовано (восстановлено из ветки data)
+    first, crashes = True, 0
+    while True:
+        started = clock()
+        REQUEST_LOG.clear()
+        try:
+            r = make_runner(first)
+            res = r.run()
+        except Exception:  # ошибка в самом сборщике: один сбой не должен останавливать дежурство
+            crashes += 1
+            log(traceback.format_exc())
+            if crashes >= LOOP_MAX_CRASHES:
+                log("Сборщик падает раз за разом — останавливаю дежурство.")
+                return "error"
+            sleep(tick)
+            continue
+        first, crashes = False, 0
+        if res:
+            log(f"{store.iso(store.now_utc())} " + ", ".join(f"{k}: {v}" for k, v in res.items())
+                + f" | запросов: {len(REQUEST_LOG)}")
+        fp = r.last_fingerprint
+        if fp and fp != published:
+            if publish():
+                published = fp  # не удалось опубликовать — попробуем на следующем проходе
+        if clock() >= deadline:
+            log("Время дежурства вышло.")
+            return "time"
+        if newer_waits():
+            log("Ждёт следующий запуск — передаю ему дежурство.")
+            return "handover"
+        sleep(max(1.0, tick - (clock() - started)))
 
 
-def _hook(cmd: str | None, log):
+def _read_fingerprint(data_dir: Path) -> str | None:
+    try:
+        return (Path(data_dir) / "fingerprint.txt").read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
+
+
+def _hook(cmd: str | None, log) -> bool:
+    """Выполнить команду публикации. True — успешно (или публиковать некуда)."""
     if not cmd:
-        return
+        return True
     res = subprocess.run(cmd, shell=True)
     if res.returncode != 0:
         log(f"after-update завершился с кодом {res.returncode}")
+    return res.returncode == 0
+
+
+def _succeeds(cmd: str) -> bool:
+    """Проверка-команда: код 0 — «да». Ошибка запуска считается «нет»."""
+    try:
+        return subprocess.run(cmd, shell=True, timeout=60).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False

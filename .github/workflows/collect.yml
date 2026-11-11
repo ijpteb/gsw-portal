@@ -1,6 +1,10 @@
-# Сбор данных: каждые 5 минут (не в начало часа — тогда GitHub чаще опаздывает).
-# Сборщик сам решает, что пора обновлять: матч — каждую минуту, день матча — каждые 5 мин,
-# таблица/статистика — раз в час, новости — раз в 20 мин.
+# Сбор данных.
+# GitHub запускает задачи по расписанию нерегулярно: cron «каждые 5 минут» на этом репозитории
+# срабатывал примерно раз в час (замер 11.11.2026). Поэтому каждый запуск «дежурит» непрерывно:
+# раз в минуту сборщик проверяет, что пора обновить (матч — каждую минуту, день матча — 5 мин,
+# новости — 20 мин, таблица/статистика/состав — час), и публикует изменения.
+# Когда GitHub ставит в очередь следующий запуск (по расписанию или вручную), текущий
+# передаёт ему дежурство — так подхватывается и новый код. Запуски идут строго по одному.
 name: Сбор данных
 on:
   schedule:
@@ -13,14 +17,14 @@ on:
         default: false
 permissions:
   contents: write   # сохранить данные в ветку data
-  actions: write    # запустить публикацию сайта
+  actions: write    # запустить публикацию сайта и следующий запуск сбора
 concurrency:
   group: collect
   cancel-in-progress: false
 jobs:
   collect:
     runs-on: ubuntu-latest
-    timeout-minutes: 330
+    timeout-minutes: 345   # дежурство — до 320 мин (GitHub разрешает задачу до 6 ч)
     env:
       GITHUB_TOKEN: ${{ github.token }}
       GH_TOKEN: ${{ github.token }}
@@ -32,14 +36,19 @@ jobs:
           python-version: "3.12"
       - name: Восстановить сохранённые данные
         run: bash scripts/ci_restore_data.sh
-      - name: Собрать данные
-        run: python3 -m collector run ${{ inputs.force && '--force' || '' }}
-      - name: Сохранить и опубликовать
-        run: bash scripts/ci_publish.sh
-      - name: Матч идёт — обновлять каждую минуту
+      - name: Дежурство — обновлять данные, пока не придёт следующий запуск
+        run: >-
+          python3 -m collector loop
+          --max-minutes 320
+          --after-update "bash scripts/ci_publish.sh"
+          --handover "bash scripts/ci_newer_run.sh"
+          --exit-reason-file "$RUNNER_TEMP/loop-exit"
+          ${{ inputs.force && '--force' || '' }}
+      - name: Время вышло, а смены нет — запустить её самим
         run: |
-          if python3 -c "import json,sys; sys.exit(0 if json.load(open('site/data/status.json'))['data']['liveWindow'] else 1)"; then
-            python3 -m collector run --live-loop --max-minutes 300 --after-update "bash scripts/ci_publish.sh"
+          if [ "$(cat "$RUNNER_TEMP/loop-exit" 2>/dev/null)" = "time" ] && ! bash scripts/ci_newer_run.sh; then
+            echo "Следующего запуска в очереди нет — ставлю его сам."
+            gh workflow run collect.yml --ref "$GITHUB_REF_NAME"
           else
-            echo "Матча сейчас нет."
+            echo "Следующий запуск уже ждёт своей очереди."
           fi

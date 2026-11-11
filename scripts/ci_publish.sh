@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 # Сохраняет site/data и site/img в ветку "data" (одна перезаписываемая версия)
 # и, если содержимое изменилось, запускает публикацию сайта (deploy.yml).
+# Сборщик вызывает его во время дежурства каждый раз, когда изменился отпечаток данных.
 set -euo pipefail
 DB=.databranch
+# Отпечаток, который этот запуск уже успешно сохранил и отправил на публикацию.
+# Пишем его только в самом конце: если push или запуск публикации сорвались,
+# следующий вызов повторит и то и другое.
+DONE=.published-fp
 mkdir -p site/data site/img
-OLD_FP="$(cat "$DB/data/fingerprint.txt" 2>/dev/null || true)"
+OLD_FP="$(cat "$DONE" 2>/dev/null || cat "$DB/data/fingerprint.txt" 2>/dev/null || true)"
 NEW_FP="$(cat site/data/fingerprint.txt 2>/dev/null || true)"
 mkdir -p "$DB/data" "$DB/img"
 rsync -a --delete site/data/ "$DB/data/"
@@ -27,3 +32,4 @@ if [ "$OLD_FP" != "$NEW_FP" ]; then
 else
   echo "Содержимое не изменилось — сайт не переопубликовываю."
 fi
+printf '%s' "$NEW_FP" > "$DONE"
