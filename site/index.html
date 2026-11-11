@@ -5,19 +5,122 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Golden State Warriors · 2026/27</title>
 <style>
-  :root { color-scheme: dark; }
-  body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px 16px;
-         background: #0b1630; color: #fff; font: 17px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-  main { max-width: 34rem; }
+  :root { color-scheme: dark; --navy: #0b1630; --line: #22356b; --gold: #ffc72c; --text: #fff;
+          --muted: #a9b6d3; --ok: #5fd38d; --bad: #ff8a8a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--navy); color: var(--text);
+         font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 44rem; margin: 0 auto; padding: 32px 16px 48px; }
   h1 { font-size: clamp(1.8rem, 6vw, 2.6rem); line-height: 1.1; margin: 0 0 .5rem; }
-  .gold { color: #ffc72c; }
-  p { color: #c9d3e8; margin: .5rem 0; }
+  h2 { font-size: 1.25rem; margin: 2rem 0 .25rem; }
+  .gold { color: var(--gold); }
+  p { margin: .5rem 0; }
+  .muted, .meta { color: var(--muted); }
+  .meta, .err { font-size: .9rem; }
+  ul { list-style: none; margin: 1rem 0; padding: 0; border-top: 1px solid var(--line); }
+  li { padding: .75rem 0; border-bottom: 1px solid var(--line); }
+  .row { display: flex; justify-content: space-between; align-items: baseline; gap: .25rem 1rem; flex-wrap: wrap; }
+  .name { font-weight: 600; }
+  .st { font-size: .9rem; }
+  .ok { color: var(--ok); } .stale { color: var(--gold); } .error, .err { color: var(--bad); }
+  .err { overflow-wrap: anywhere; }
 </style>
 </head>
 <body>
 <main>
   <h1>Golden State Warriors <span class="gold">2026/27</span></h1>
-  <p>Портал болельщика в разработке. Данные о команде уже собираются автоматически; страницы появятся на следующем этапе.</p>
+  <p class="muted">Портал болельщика в разработке: страницы появятся на следующем этапе.
+    Данные о команде уже собираются автоматически — ниже видно, что и когда обновлялось.</p>
+
+  <h2>Состояние данных</h2>
+  <p id="summary" class="muted">Загружаю…</p>
+  <ul id="list"></ul>
+  <p id="tz" class="meta"></p>
 </main>
+<script>
+// Временная страница этапа 1: показывает data/status.json, который пишет сборщик.
+const SETS = [
+  ['schedule', 'Расписание и результаты', 'раз в час, в день матча — каждые 5 мин'],
+  ['live', 'Счёт идущего матча', 'во время матча — каждую минуту'],
+  ['team', 'Команда: баланс и место', 'раз в час'],
+  ['standings', 'Таблица Западной конференции', 'раз в час'],
+  ['roster', 'Состав', 'раз в час'],
+  ['injuries', 'Травмы', 'раз в час'],
+  ['player_stats', 'Статистика игроков', 'раз в час'],
+  ['team_stats', 'Статистика команды и места в лиге', 'раз в час'],
+  ['news', 'Новости', 'каждые 20 мин'],
+  ['logos', 'Логотипы команд', 'раз в неделю'],
+];
+const FMT = new Intl.DateTimeFormat('ru-RU', {day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit'});
+
+function tzName() {
+  try {
+    const part = new Intl.DateTimeFormat('ru-RU', {timeZoneName: 'short'}).formatToParts(new Date())
+      .find(p => p.type === 'timeZoneName');
+    return part ? part.value : '';
+  } catch (e) { return ''; }
+}
+
+function when(iso) {
+  const t = Date.parse(iso || '');
+  if (Number.isNaN(t)) return '—';
+  const s = Math.max(0, (Date.now() - t) / 1000);
+  let ago;
+  if (s < 90) ago = 'только что';
+  else if (s < 3600) ago = Math.round(s / 60) + ' мин назад';
+  else if (s < 86400) ago = Math.floor(s / 3600) + ' ч ' + Math.floor((s % 3600) / 60) + ' мин назад';
+  else ago = Math.floor(s / 86400) + ' дн назад';
+  return FMT.format(t) + ' (' + ago + ')';
+}
+
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+async function load() {
+  const summary = document.getElementById('summary');
+  try {
+    const r = await fetch('data/status.json', {cache: 'no-cache'});
+    if (!r.ok) throw new Error('ответ ' + r.status);
+    const st = (await r.json()).data;
+    let text = 'Последняя публикация данных: ' + when(st.generatedAt) + '.';
+    if (st.liveWindow) text += ' Сейчас идёт матч — счёт обновляется каждую минуту.';
+    else if (st.gameday) text += ' Сегодня день матча — расписание обновляется каждые 5 минут.';
+    summary.textContent = text;
+    const list = document.getElementById('list');
+    list.replaceChildren();
+    for (const [key, name, freq] of SETS) {
+      const d = st.datasets[key];
+      const li = el('li');
+      const row = el('div', 'row');
+      let label = '✓ в порядке', cls = 'ok';
+      if (!d) { label = '— ещё не собиралось'; cls = 'error'; }
+      else if (d.status === 'stale') { label = '⚠ источник не ответил, показаны прошлые данные'; cls = 'stale'; }
+      else if (d.status !== 'ok') { label = '✗ данных нет'; cls = 'error'; }
+      row.append(el('span', 'name', name), el('span', 'st ' + cls, label));
+      li.append(row);
+      if (d) {
+        const src = d.source && d.source.name ? d.source.name : '—';
+        let meta = 'Получено: ' + when(d.fetchedAt) + ' · источник: ' + src + ' · обновляется ' + freq;
+        if (key === 'live' && !st.liveWindow) meta += ' (сейчас матча нет)';
+        li.append(el('div', 'meta', meta));
+        if (d.status !== 'ok' && d.error) li.append(el('div', 'err', 'Последняя попытка ' + when(d.checkedAt) + ': ' + d.error));
+      }
+      list.append(li);
+    }
+  } catch (e) {
+    summary.textContent = 'Не удалось загрузить состояние данных (' + e.message + '). Обновите страницу чуть позже.';
+  }
+}
+
+const tz = tzName();
+document.getElementById('tz').textContent = 'Время — по часовому поясу вашего устройства' + (tz ? ' (' + tz + ')' : '') +
+  '. Страница обновляется сама раз в минуту.';
+load();
+setInterval(load, 60000);
+</script>
 </body>
 </html>
