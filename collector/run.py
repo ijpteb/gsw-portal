@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import config, images, news, store
-from .http import REQUEST_LOG, SourceError
+from .http import REQUEST_LOG, SourceError, problems
 from .sources import espn, rss
 
 Attempt = tuple[dict, Callable[[], object]]  # (описание источника, функция «скачать и разобрать»)
@@ -332,8 +332,9 @@ def loop(max_minutes: int = config.LOOP_MAX_MINUTES, after_update: str | None = 
             continue
         first, crashes = False, 0
         if res:
+            bad = problems()
             log(f"{store.iso(store.now_utc())} " + ", ".join(f"{k}: {v}" for k, v in res.items())
-                + f" | запросов: {len(REQUEST_LOG)}")
+                + f" | запросов: {len(REQUEST_LOG)}" + (f" | сбои и медленные: {'; '.join(bad)}" if bad else ""))
         fp = r.last_fingerprint
         if fp and fp != published:
             if publish():

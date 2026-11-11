@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from collector import run, store
+from collector import http, run, store
 
 
 class FakeClock:
@@ -137,6 +137,16 @@ class LoopOffline(unittest.TestCase):
             self.assertEqual(len(published), 1)
             self.assertEqual(store.load("schedule", d)["status"], "error")
             self.assertTrue((d / "fingerprint.txt").read_text())
+
+
+class RequestProblems(unittest.TestCase):
+    def test_only_failed_and_slow(self):
+        log = [("https://site.api.espn.com/a", 200, 0.4), ("https://site.api.espn.com/b", 200, 7.25),
+               ("https://www.sport-express.ru/c", "TimeoutError", 25.0), ("https://x.example/d", 404, 0.2)]
+        with mock.patch.object(http, "REQUEST_LOG", log):
+            self.assertEqual(http.problems(), ["site.api.espn.com 200 7.2 с",
+                                               "www.sport-express.ru TimeoutError 25.0 с",
+                                               "x.example 404 0.2 с"])
 
 
 if __name__ == "__main__":

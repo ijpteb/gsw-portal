@@ -6,6 +6,7 @@ import os
 import ssl
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from . import config
@@ -28,8 +29,15 @@ def _ssl_context() -> ssl.SSLContext:
 
 _CTX = _ssl_context()
 
-# Счётчик запросов за запуск — чтобы видеть нагрузку на источники.
-REQUEST_LOG: list[tuple[str, int | str]] = []
+# Запросы за проход — чтобы видеть нагрузку на источники и их сбои:
+# (адрес, код ответа или название ошибки, секунд).
+REQUEST_LOG: list[tuple[str, int | str, float]] = []
+
+
+def problems(slow: float = 5.0) -> list[str]:
+    """Неудачные и медленные запросы из REQUEST_LOG — для журнала дежурства."""
+    return [f"{urllib.parse.urlsplit(url).hostname} {status} {secs:.1f} с"
+            for url, status, secs in REQUEST_LOG if status != 200 or secs >= slow]
 
 
 def _blocked(url: str) -> bool:
@@ -40,7 +48,7 @@ def _blocked(url: str) -> bool:
 
 def fetch_bytes(url: str, headers: dict | None = None, timeout: int | None = None) -> bytes:
     if _blocked(url):
-        REQUEST_LOG.append((url, "blocked"))
+        REQUEST_LOG.append((url, "blocked", 0.0))
         raise SourceError("источник недоступен (отключён для проверки)")
     hdrs = {"User-Agent": config.USER_AGENT, "Accept-Encoding": "identity"}
     if headers:
@@ -48,19 +56,20 @@ def fetch_bytes(url: str, headers: dict | None = None, timeout: int | None = Non
     last_err: Exception | None = None
     for attempt in range(config.HTTP_RETRIES + 1):
         req = urllib.request.Request(url, headers=hdrs)
+        t0 = time.monotonic()
         try:
             with urllib.request.urlopen(req, timeout=timeout or config.HTTP_TIMEOUT, context=_CTX) as resp:
                 body = resp.read()
-                REQUEST_LOG.append((url, resp.status))
+                REQUEST_LOG.append((url, resp.status, time.monotonic() - t0))
                 return body
         except urllib.error.HTTPError as e:
-            REQUEST_LOG.append((url, e.code))
+            REQUEST_LOG.append((url, e.code, time.monotonic() - t0))
             last_err = e
             # 4xx (кроме 429) повторять бессмысленно
             if 400 <= e.code < 500 and e.code != 429:
                 break
         except Exception as e:  # сеть, таймаут, SSL
-            REQUEST_LOG.append((url, type(e).__name__))
+            REQUEST_LOG.append((url, type(e).__name__, time.monotonic() - t0))
             last_err = e
         if attempt < config.HTTP_RETRIES:
             time.sleep(2 * (attempt + 1))

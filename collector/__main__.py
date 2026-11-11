@@ -5,7 +5,7 @@ import argparse
 import sys
 
 from . import config, store
-from .http import REQUEST_LOG
+from .http import REQUEST_LOG, problems
 
 
 def main(argv=None) -> int:
@@ -48,6 +48,8 @@ def main(argv=None) -> int:
     for name, msg in res.items():
         print(f"{name:28} {msg}")
     print(f"Запросов к источникам: {len(REQUEST_LOG)}")
+    for line in problems():
+        print(f"  сбой или медленно: {line}")
     bad = [k for k, v in res.items() if not v.startswith("ok")]
     return 1 if bad and len(bad) == len(res) else 0
 
