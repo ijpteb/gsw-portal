@@ -1,15 +1,24 @@
 // Какой матч последний, какой следующий и идёт ли игра сейчас — по расписанию и live-данным ESPN.
 import {ms} from './format.js?v=__V__';
 
+/** Все матчи по времени: регулярный чемпионат, а весной — плей-ин и плей-офф (если источник их отдал). */
 export function sortedGames(scheduleEnv) {
-  const games = scheduleEnv?.data?.games || [];
-  return [...games].filter((g) => g.date).sort((a, b) => ms(a.date) - ms(b.date));
+  const d = scheduleEnv?.data;
+  const games = [...(d?.games || []), ...(d?.postseason?.games || [])];
+  return games.filter((g) => g.date).sort((a, b) => ms(a.date) - ms(b.date));
 }
 
 /** Матч на табло прямо сейчас (из live.json), если он идёт. */
 export function liveGame(liveEnv) {
   const g = liveEnv?.data?.game;
   return g && g.state === 'in' ? g : null;
+}
+
+/** Матч из расписания с самым свежим счётом: табло (live.json) обновляется каждую минуту, расписание — реже. */
+export function freshen(g, liveEnv) {
+  const lg = liveEnv?.data?.game;
+  if (!lg || lg.id !== g.id || (lg.state !== 'in' && lg.state !== 'post')) return g;
+  return {...g, ...lg, stage: g.stage, fromLive: true};
 }
 
 /** Последний сыгранный: из расписания или только что завершившийся (live успевает раньше расписания). */

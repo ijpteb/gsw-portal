@@ -77,6 +77,36 @@ export function calDate(ymd, {withYear = false} = {}) {
   return (withYear || +m[1] !== new Date().getFullYear() ? F.calYear : F.cal).format(d).replace(/\s*г\.$/, '');
 }
 
+const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь',
+  'Ноябрь', 'Декабрь'];
+const FWD = dtf({weekday: 'short'});
+
+/** Месяц матча по часовому поясу устройства: «2026-11». */
+export function monthKey(iso) {
+  const d = toDate(iso);
+  return d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}` : null;
+}
+
+/** «2026-11» → «Ноябрь 2026» (или просто «Ноябрь»). */
+export function monthName(key, {withYear = true} = {}) {
+  const m = /^(\d{4})-(\d{2})$/.exec(key || '');
+  if (!m) return '—';
+  return withYear ? `${MONTHS[+m[2] - 1]} ${m[1]}` : MONTHS[+m[2] - 1];
+}
+
+/** Дата для строки календаря: {wd: 'чт', day: '12', mon: 'нояб.'}. */
+export function dateParts(iso) {
+  const d = toDate(iso);
+  if (!d) return null;
+  const mon = F.dayShort.formatToParts(d).find((p) => p.type === 'month')?.value || '';
+  return {wd: FWD.format(d), day: String(d.getDate()), mon};
+}
+
+/** «2-е место», «1-е место». */
+export function place(n) {
+  return n == null ? '—' : `${n}-е место`;
+}
+
 /** «05:30». */
 export function time(iso) {
   const d = toDate(iso);

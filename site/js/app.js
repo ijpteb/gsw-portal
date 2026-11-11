@@ -12,6 +12,10 @@ import home from './pages/home.js?v=__V__';
 import newsItem from './pages/news-item.js?v=__V__';
 import player from './pages/player.js?v=__V__';
 import roster from './pages/roster.js?v=__V__';
+import schedule from './pages/schedule.js?v=__V__';
+import standings from './pages/standings.js?v=__V__';
+import stats from './pages/stats.js?v=__V__';
+import compare from './pages/compare.js?v=__V__';
 import favorites from './pages/favorites.js?v=__V__';
 import soon from './pages/soon.js?v=__V__';
 import status from './pages/status.js?v=__V__';
@@ -32,6 +36,10 @@ const ROUTES = [
   [/^\/news\/([\w-]+)$/, newsItem],
   [/^\/player\/(\d+)$/, player],
   [/^\/roster$/, roster],
+  [/^\/schedule$/, schedule],
+  [/^\/standings$/, standings],
+  [/^\/stats$/, stats],
+  [/^\/compare$/, compare],
   [/^\/favorites$/, favorites],
   [/^\/status$/, status],
   [new RegExp(`^/(${soonIds})$`), soon],

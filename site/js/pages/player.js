@@ -2,7 +2,7 @@
 // вся статистика сезона (за матч и всего), броски, последние матчи; кнопка «В избранное».
 import * as data from '../data.js?v=__V__';
 import * as fmt from '../format.js?v=__V__';
-import {h, playerPhoto, starButton, sourceLine, noData, errorState, emptyState, usable, injuryOf, statusChip, teamLogo,
+import {h, icon, playerPhoto, starButton, sourceLine, noData, errorState, emptyState, usable, injuryOf, statusChip, teamLogo,
   problemText, stagger} from '../ui.js?v=__V__';
 import {backButton} from './news-item.js?v=__V__';
 
@@ -75,7 +75,8 @@ function hero(p, inj, env) {
     h('div', {class: 'ph-main'},
       h('p', {class: 'eyebrow'}, [p.jersey != null ? `#${p.jersey}` : null, cap(fmt.position(p.position))].filter(Boolean).join(' · ')),
       h('h1', {class: 'ph-name'}, name),
-      h('div', {class: 'ph-actions'}, statusChip(inj), starButton(p, {withText: true})),
+      h('div', {class: 'ph-actions'}, statusChip(inj), starButton(p, {withText: true}),
+        h('a', {class: 'pill-link', href: `#/compare?a=${p.id}`}, icon('compare', 18), 'Сравнить')),
       h('dl', {class: 'ph-facts'},
         fact('Рост', p.heightCm ? `${p.heightCm} см` : '—'),
         fact('Вес', p.weightKg ? `${p.weightKg} кг` : '—'),
@@ -208,7 +209,7 @@ function gameRow(g, shortNames) {
   const opp = g.opponent || {};
   const result = {W: 'победа', L: 'поражение'}[g.result];
   return h('tr', null,
-    h('th', {scope: 'row', class: 'g-first'},
+    h('th', {scope: 'row', class: 'col-first g-first'},
       h('span', {class: 'g-date'}, fmt.dateShort(g.date), h('small', null, g.home ? 'дома' : 'в гостях')),
       h('span', {class: 'g-opp', title: opp.name || ''}, teamLogo(opp, 22), shortNames.get(g.eventId) || opp.abbr || '—')),
     h('td', {class: `g-score${g.result === 'W' ? ' is-win' : g.result === 'L' ? ' is-loss' : ''}`},
@@ -250,10 +251,10 @@ function gamesCard(env, schedule, ui) {
   });
   return section('games-card', title, h('span', {class: 'muted small nowrap'}, fmt.games(games.length)),
     h('div', {class: 'table-scroll', tabindex: '0', role: 'region', 'aria-label': 'Таблица матчей, прокручивается вбок'},
-      h('table', {class: 'games-table'},
+      h('table', {class: 'data-table games-table'},
         h('caption', {class: 'visually-hidden'}, 'Последние матчи игрока: дата, соперник, счёт и личная статистика'),
         h('thead', null, h('tr', null,
-          h('th', {scope: 'col', class: 'g-first'}, 'Матч'), h('th', {scope: 'col'}, 'Счёт'),
+          h('th', {scope: 'col', class: 'col-first g-first'}, 'Матч'), h('th', {scope: 'col'}, 'Счёт'),
           COLS.map(([short, full]) => h('th', {scope: 'col', class: 'num', title: full}, h('abbr', {title: full}, short))))),
         h('tbody', null, rows))),
     more,

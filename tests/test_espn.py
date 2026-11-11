@@ -65,6 +65,38 @@ class Schedule(unittest.TestCase):
             espn.parse_schedule(raw)
 
 
+class Postseason(unittest.TestCase):
+    """Плей-ин и плей-офф. Настоящие ответы: пустой (2026/27, 11.11.2026) и прошлый сезон 2024/25."""
+
+    def test_not_published_yet(self):
+        raw = fx("espn_schedule_postseason_empty.json")
+        self.assertEqual(espn.parse_postseason(raw, "playoffs"), [])
+        self.assertEqual(espn.parse_postseason(raw, "playin"), [])
+
+    def test_playin_2025(self):
+        games = espn.parse_postseason(fx("espn_schedule_playin_2025.json"), "playin", year=2025)
+        self.assertEqual(len(games), 1)
+        g = games[0]
+        self.assertEqual((g["stage"], g["opponent"]["abbr"], g["home"]), ("playin", "MEM", True))
+        self.assertTrue(any("Play-In" in n for n in g["notes"]))
+        self.assertTrue(g["completed"])
+
+    def test_playoffs_2025(self):
+        games = espn.parse_postseason(fx("espn_schedule_playoffs_2025.json"), "playoffs", year=2025)
+        self.assertEqual(len(games), 12)
+        self.assertEqual({g["stage"] for g in games}, {"playoffs"})
+        first = games[0]
+        self.assertEqual((first["opponent"]["abbr"], first["home"]), ("HOU", False))
+        self.assertEqual(first["notes"], ["West 1st Round - Game 1"])
+
+    def test_other_season_rejected(self):
+        # прошлогодний плей-офф вместо 2026/27 — ошибка источника, а не расписание
+        with self.assertRaises(SourceError):
+            espn.parse_postseason(fx("espn_schedule_playoffs_2025.json"), "playoffs")
+        with self.assertRaises(SourceError):  # тип сезона не тот: плей-офф под видом плей-ин
+            espn.parse_postseason(fx("espn_schedule_playoffs_2025.json"), "playin", year=2025)
+
+
 class Roster(unittest.TestCase):
     def setUp(self):
         self.d = espn.parse_roster(fx("espn_roster.json"))

@@ -86,8 +86,9 @@ class Runner:
     # --- расписание и «день матча» ----------------------------------------------
 
     def games(self) -> list[dict]:
-        env = self.load("schedule")
-        return ((env or {}).get("data") or {}).get("games") or []
+        """Все матчи ГСВ: регулярный чемпионат, а весной — плей-ин и плей-офф."""
+        data = (self.load("schedule") or {}).get("data") or {}
+        return (data.get("games") or []) + ((data.get("postseason") or {}).get("games") or [])
 
     def _game_dt(self, g: dict) -> datetime | None:
         return store.parse_iso(g.get("date"))
@@ -115,11 +116,36 @@ class Runner:
     def task_schedule(self, now_anyway: bool = False):
         interval = config.SCHEDULE_GAMEDAY if self.is_gameday() else config.INTERVALS["schedule"]
         if self.due("schedule", interval) or (now_anyway and self.wanted("schedule")):
+            def go():
+                data = espn.parse_schedule(espn.fetch("schedule"))
+                data["postseason"] = self.postseason()
+                return data
             self.attempt("schedule", [
-                (espn.source("schedule"), lambda: espn.parse_schedule(espn.fetch("schedule"))),
+                (espn.source("schedule"), go),
                 # Запасные источники (NBA.com cdn, balldontlie) подключаются после проверки
                 # с серверов GitHub — см. CLAUDE.md.
             ])
+
+    def postseason(self) -> dict:
+        """Плей-ин и плей-офф. До POSTSEASON_CHECK_FROM не спрашиваем (расписания заведомо нет).
+        Источник не ответил — оставляем прошлую версию: регулярный чемпионат от этого не страдает."""
+        if self.now.date() < config.POSTSEASON_CHECK_FROM:
+            return {"checked": False, "games": [], "fetchedAt": None, "error": None}
+        prev = ((self.load("schedule") or {}).get("data") or {}).get("postseason") or {}
+        games, errors = [], []
+        for stage in espn.POSTSEASON:
+            try:
+                games += espn.parse_postseason(espn.fetch_json_url(espn.postseason_url(stage)), stage)
+            except SourceError as e:
+                errors.append(str(e))
+            except Exception as e:  # формат ответа поменялся — не роняем расписание
+                self.log(traceback.format_exc())
+                errors.append(f"{espn.POSTSEASON_NAMES[stage]}: неожиданный формат ответа ({type(e).__name__})")
+        if errors:
+            return {"checked": bool(prev.get("checked")), "games": prev.get("games") or [],
+                    "fetchedAt": prev.get("fetchedAt"), "error": "; ".join(errors)}
+        games.sort(key=lambda g: g["date"] or "")
+        return {"checked": True, "games": games, "fetchedAt": store.iso(self.now), "error": None}
 
     def task_live(self) -> str | None:
         """Возвращает состояние матча ('pre'/'in'/'post') или None, если матча нет."""

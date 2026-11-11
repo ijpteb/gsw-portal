@@ -200,6 +200,39 @@ def parse_schedule(raw: dict) -> dict:
     }
 
 
+# Плей-ин и плей-офф ESPN отдаёт отдельными «типами сезона» (проверено 11.11.2026 на прошлых сезонах:
+# seasontype=5 — «Play-In Season», seasontype=3 — «Postseason»). Пока расписания нет — пустой список
+# матчей и без requestedSeason.
+POSTSEASON = {"playin": 5, "playoffs": 3}
+POSTSEASON_NAMES = {"playin": "плей-ин", "playoffs": "плей-офф"}
+
+
+def postseason_url(stage: str) -> str:
+    return f"{SITE}/teams/{T}/schedule?season={Y}&seasontype={POSTSEASON[stage]}"
+
+
+def parse_postseason(raw: dict, stage: str, year: int = Y) -> list[dict]:
+    """Матчи ГСВ в плей-ин или плей-офф. Пустой список — расписания ещё нет (или ГСВ туда не попали)."""
+    events = raw.get("events") or []
+    if not events:
+        return []
+    name = POSTSEASON_NAMES[stage]
+    req = raw.get("requestedSeason") or {}
+    if req.get("year") != year or req.get("type") != POSTSEASON[stage]:
+        label = req.get("displayName") or req.get("year") or "неизвестный"
+        raise SourceError(f"{name}: источник отдал сезон {label} (тип {req.get('type')}) вместо {config.SEASON_LABEL}")
+    games = []
+    for e in events:
+        g = _parse_event(e)
+        g["stage"] = stage
+        games.append(g)
+    games.sort(key=lambda g: g["date"] or "")
+    first, last = games[0]["date"][:10], games[-1]["date"][:10]
+    if first < f"{year}-03-15" or last > f"{year}-07-15":
+        raise SourceError(f"{name}: даты {first}…{last} не похожи на весну {year} года")
+    return games
+
+
 def parse_scoreboard(raw: dict) -> dict | None:
     """Матч ГСВ на табло дня (для live). None — если ГСВ в этот день не играет."""
     for e in raw.get("events", []):
